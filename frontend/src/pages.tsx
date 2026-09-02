@@ -65,6 +65,7 @@ export function Login(){
   const [selected,setSelected] = useState<PrimaryRole|null>(null);
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
+  const [showPassword,setShowPassword]=useState(false);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
   
@@ -129,17 +130,15 @@ export function Login(){
             placeholder="e.g. DM-0142 or name@dmastru.com"
             value={email} 
             onChange={e => setEmail(e.target.value)} 
-          />
-          <Field 
-            label="Password" 
-            name="password" 
-            type="password" 
-            autoComplete="current-password" 
-            required 
-            placeholder="••••••••••••"
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-          />
+          />          <label className="field">
+            <span>Password</span>
+            <span className="password-input">
+              <input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required placeholder="••••••••••••" value={password} onChange={e => setPassword(e.target.value)} />
+              <button className="password-toggle" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} title={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(visible => !visible)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+              </button>
+            </span>
+          </label>
           
           <div className="form-options">
             <label className="checkbox-label">
