@@ -503,6 +503,14 @@ a:focus-visible {
   z-index: 10;
 }
 
+.sidebar-top {
+  display: contents;
+}
+
+.mobile-menu-button {
+  display: none;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -1001,22 +1009,122 @@ a:focus-visible {
 }
 
 @media (max-width: 760px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .login-right-panel {
+    min-height: 100dvh;
+    padding: 20px;
+    justify-content: flex-start;
+  }
+
+  .login-right-header {
+    justify-content: center;
+  }
+
+  .login-right-content {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    padding: 64px 4px 28px;
+  }
+
+  .login-card-inner {
+    max-width: none;
+  }
+
+  .form-title {
+    font-size: 30px;
+  }
+
+  .form-description {
+    margin-bottom: 24px;
+  }
+
+  .form-trouble-help {
+    margin-top: 28px;
+  }
+
   .sidebar {
-    height: auto;
-    flex-direction: column;
-    padding: 16px;
-    gap: 16px;
-    align-items: stretch;
+    position: sticky;
+    top: 0;
+    height: 68px;
+    display: block;
+    padding: 0;
+    z-index: 50;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.22);
+  }
+
+  .sidebar-top {
+    height: 68px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .brand-title {
+    font-size: 16px;
+  }
+
+  .mobile-menu-button {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-content: center;
+    gap: 5px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .mobile-menu-button span {
+    width: 18px;
+    height: 2px;
+    display: block;
+    background: #ffffff;
+    border-radius: 2px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .mobile-nav-open .mobile-menu-button span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .mobile-nav-open .mobile-menu-button span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .mobile-nav-open .mobile-menu-button span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
   }
   
   .sidebar nav {
+    display: none;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     width: 100%;
+    max-height: calc(100dvh - 68px);
+    overflow-y: auto;
+    padding: 12px 16px;
+    background-color: var(--color-bg-sidebar);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 18px rgba(15, 23, 42, 0.18);
+  }
+
+  .mobile-nav-open .sidebar nav {
+    display: flex;
   }
   
   .sidebar nav a {
-    padding: 10px 16px;
+    min-height: 44px;
+    padding: 12px 14px;
     border-top: none;
     border-bottom: none;
     border-left: 3px solid transparent;
@@ -1028,11 +1136,92 @@ a:focus-visible {
   }
   
   .account {
+    display: none;
     margin-left: 0;
     width: 100%;
     justify-content: space-between;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 12px;
+    padding: 14px 18px;
+    background-color: var(--color-bg-sidebar);
+    box-shadow: 0 12px 18px rgba(15, 23, 42, 0.18);
+  }
+
+  .mobile-nav-open .account {
+    display: flex;
+  }
+
+  .main {
+    padding: 24px 16px 44px;
+  }
+
+  .page-header {
+    margin-bottom: 20px;
+  }
+
+  .page-header h1 {
+    font-size: 29px;
+  }
+
+  .muted {
+    font-size: 13px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-grid .card {
+    min-height: 132px;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .stat-grid .card .muted {
+    font-size: 9px;
+    letter-spacing: 0.6px;
+    line-height: 1.35;
+  }
+
+  .stat {
+    font-size: 34px;
+    margin-top: 8px;
+  }
+
+  .table-wrap {
+    margin-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-wrap table {
+    min-width: 560px;
+  }
+
+  .table-wrap th,
+  .table-wrap td {
+    padding: 12px 14px;
+  }
+
+  .inline-form,
+  .actions {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .inline-form .field,
+  .form-grid .button {
+    width: 100%;
+  }
+
+  .form-grid .button {
+    height: 44px;
   }
   
   .page-header {
