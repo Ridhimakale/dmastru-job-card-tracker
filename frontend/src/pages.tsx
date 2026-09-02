@@ -135,7 +135,7 @@ export function Login(){
             <span className="password-input">
               <input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required placeholder="••••••••••••" value={password} onChange={e => setPassword(e.target.value)} />
               <button className="password-toggle" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} title={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(visible => !visible)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />{!showPassword&&<path d="m4 4 16 16" />}</svg>
               </button>
             </span>
           </label>
@@ -221,4 +221,3 @@ export function ForgotPassword(){
 export function HomeRedirect(){const {user}=useAuth();const map:Record<Role,string>={ADMIN:'/admin/dashboard',MANAGEMENT:'/management/dashboard',END_USER:'/user/dashboard',UNIT_REPRESENTATIVE:'/approvals',DIRECTOR:'/approvals'};return <Navigate to={user?map[user.role]:'/login'} replace/>}
 export function Guard({roles,children}:{roles:Role[];children:ReactElement}){const {user,loading}=useAuth();const location=useLocation();if(loading)return <Loading/>;if(!user)return <Navigate to="/login" state={{from:location}} replace/>;if(!roles.includes(user.role))return <main className="center"><Card title="Access denied"><p>You do not have permission to access this page.</p></Card></main>;return children}
 export function Placeholder({title}:{title:string}){const {user}=useAuth();return <><header className="page-header"><div><p className="eyebrow">{user?.role.replace('_',' ')} WORKSPACE</p><h1>{title}</h1><p className="muted">This secure route is ready for its workflow module.</p></div><Status>Connected</Status></header><Card title="Foundation ready"><p>Authentication, session handling, API authorization, responsive layout, and accessible controls are configured.</p></Card></>}
-
