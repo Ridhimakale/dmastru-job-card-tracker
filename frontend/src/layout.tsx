@@ -27,6 +27,7 @@ export function AppLayout(){
       <nav id="primary-navigation" aria-label="Primary navigation">{nav[user.role].map(i=><NavLink key={i.to} to={i.to} onClick={closeMenu}>{i.label}</NavLink>)}</nav>
       <div className="account"><strong>{user.full_name}</strong><small>{user.role.replace('_',' ')}</small><Button variant="quiet" onClick={()=>void logout()}>Sign out</Button></div>
     </aside>
+    <button className="mobile-nav-backdrop" type="button" aria-label="Close navigation" tabIndex={menuOpen ? 0 : -1} onClick={closeMenu}></button>
     <main className="main" key={location.pathname}><Outlet/></main>
   </div>
 }
