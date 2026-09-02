@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+argon2-cffi
+PyJWT
+psycopg[binary]

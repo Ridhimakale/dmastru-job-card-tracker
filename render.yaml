@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: dmastru-jobcard-api
+    runtime: docker
+    rootDir: backend
+    healthCheckPath: /health
+    # Free-tier trial configuration. Uploaded files are temporary without a disk.
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dmastru-jobcard-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRY_MINUTES
+        value: "30"
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      - key: HTTPS_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "120"
+      - key: LOGIN_RATE_LIMIT_MAX_REQUESTS
+        value: "10"
+      # Set this in Render after the static site's URL is known.
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: dmastru-jobcard-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Enter the public API URL, e.g. https://dmastru-jobcard-api.onrender.com
+      - key: VITE_API_URL
+        sync: false
+
+databases:
+  - name: dmastru-jobcard-db
+    plan: free

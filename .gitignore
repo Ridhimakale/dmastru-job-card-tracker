@@ -1,0 +1,39 @@
+# Local secrets and development databases
+.env
+.env.*
+!.env.production.example
+!frontend/.env.example
+*.db
+*.sqlite
+*.sqlite3
+
+# User-uploaded files and local logs
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+*.log
+test-server.out
+test-server.err
+backend/.pytest-*.out
+backend/.pytest-*.err
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+backend/.pytest_cache/
+backend/test_phase1.db
+
+# Frontend generated files
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
