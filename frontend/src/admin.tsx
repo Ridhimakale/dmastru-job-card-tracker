@@ -89,6 +89,7 @@ function JobCardManage({card,close,reload}:{card:CardRow;close:()=>void;reload:(
   const milestones = useLoad<Milestone[]>(`/api/job-cards/${card.id}/milestones`);
   const docs = useLoad<Document[]>(`/api/job-cards/${card.id}/documents`);
   const approvals = useLoad<Approval[]>(`/api/job-cards/${card.id}/approvals`);
+  const [documentError,setDocumentError] = useState('');
   async function milestone(e:FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try { await api(`/api/job-cards/${card.id}/milestones`,{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))}); milestones.reload(); }
@@ -99,6 +100,11 @@ function JobCardManage({card,close,reload}:{card:CardRow;close:()=>void;reload:(
     if (!comment) return;
     try { await api(`/api/documents/${document.id}/review`,{method:'POST',body:JSON.stringify({decision,comment})}); docs.reload(); }
     catch(e) { alert(message(e)); }
+  }
+  async function downloadDocument(document:Document) {
+    setDocumentError('');
+    try { await downloadFile(`/api/documents/${document.id}/download`,document.file_name); }
+    catch(e) { setDocumentError(message(e)); }
   }
   return <section className="drawer" aria-label="Job Card management">
     <Card title={`Manage ${card.number}`}>
@@ -111,7 +117,8 @@ function JobCardManage({card,close,reload}:{card:CardRow;close:()=>void;reload:(
         </div>
         <div>
           <h3>Documents</h3>
-          <DataTable headers={['Type','File','Version','Status','Remarks','Actions']} rows={(docs.data ?? []).map(d => [d.document_type,d.file_name,`V${d.version}`,<Status>{d.status}</Status>,d.remarks ?? '-',<div className="actions"><Button variant="secondary" onClick={() => downloadFile(`/api/documents/${d.id}/download`,d.file_name)}>Download</Button>{d.status !== 'APPROVED' && <Button onClick={() => reviewDocument(d,'APPROVED')}>Approve</Button>}<Button variant="secondary" onClick={() => reviewDocument(d,'REJECTED')}>Reject</Button></div>])}/>
+          {documentError && <ErrorMessage text={documentError}/>}
+          <DataTable headers={['Type','File','Version','Status','Remarks','Actions']} rows={(docs.data ?? []).map(d => [d.document_type,d.file_name,`V${d.version}`,<Status>{d.status}</Status>,d.remarks ?? '-',<div className="actions"><Button variant="secondary" onClick={() => void downloadDocument(d)}>Download</Button>{d.status !== 'APPROVED' && <Button onClick={() => reviewDocument(d,'APPROVED')}>Approve</Button>}<Button variant="secondary" onClick={() => reviewDocument(d,'REJECTED')}>Reject</Button></div>])}/>
           <h3>Approvals</h3>
           <DataTable headers={['Stage','Decision','Comment']} rows={(approvals.data ?? []).map(a => [a.stage,a.decision,a.comment ?? '-'])}/>
         </div>

@@ -22,7 +22,12 @@ export async function downloadFile(path:string, fallbackName:string) {
   const link=document.createElement('a');
   link.href=url;
   link.download=fallbackName;
+  link.style.display='none';
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  // Some browsers begin the download after the click handler completes. Revoking
+  // the URL immediately can cancel the download.
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 export const authApi={ login:(email:string,password:string)=>api<Session>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}), refresh:(refresh_token:string)=>api<Session>('/api/auth/refresh',{method:'POST',body:JSON.stringify({refresh_token})}), logout:()=>api<void>('/api/auth/logout',{method:'POST'}), me:()=>api<Session['user']>('/api/auth/me') };
