@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
+
 :root {
   --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   
@@ -110,6 +113,10 @@ body {
   cursor: not-allowed;
   transform: none !important;
 }
+
+.marketing-page{max-width:1440px;margin:0 auto;padding:28px 32px}.marketing-page .page-header{margin-bottom:24px}.marketing-page .page-header .muted{margin-top:6px}.marketing-grid{display:grid;grid-template-columns:minmax(280px,.8fr) minmax(0,1.5fr);gap:20px;align-items:start}.marketing-form{display:grid;gap:12px}.marketing-form textarea{font:inherit;width:100%;min-height:88px;border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px;background:var(--color-bg-input);resize:vertical}.marketing-form textarea:focus-visible,.marketing-form select:focus-visible{outline:2px solid var(--brand-blue);outline-offset:2px}.crm-records{display:grid;gap:10px;max-height:calc(100vh - 270px);overflow:auto}.crm-record{border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px;display:flex;justify-content:space-between;gap:16px;background:#fff}.crm-record>div{min-width:0;display:grid;gap:7px}.crm-record p{overflow-wrap:anywhere}.crm-record .status{display:inline-flex}.inline-status{display:flex;align-items:end;gap:10px}.inline-status .field{max-width:190px}.followup-panel{margin-top:12px;padding:14px;border-radius:var(--radius-sm);background:var(--color-bg-base);display:grid;gap:14px}.followup-panel>div{padding-bottom:10px;border-bottom:1px solid var(--color-border)}.followup-panel small{color:var(--color-text-muted)}.enquiry-record{display:block}.duplicate-warning{padding:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--radius-sm);display:grid;gap:8px}.record-links{display:flex;gap:12px;flex-wrap:wrap}.record-links a{font-size:13px;font-weight:600;color:var(--brand-blue)}
+@media(max-width:1000px){.marketing-grid{grid-template-columns:1fr}.crm-records{max-height:none}}
+@media(max-width:640px){.marketing-page{padding:20px 16px}.marketing-page .actions{align-items:stretch}.marketing-page .actions>*{width:100%}.crm-record{padding:12px}.inline-status{align-items:stretch;flex-wrap:wrap}}
 
 /* Focus indicator */
 .button:focus-visible,
@@ -480,7 +487,7 @@ a:focus-visible {
 
 .role-choice-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -878,8 +885,12 @@ a:focus-visible {
 
 .two-column {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
+}
+
+.two-column > * {
+  min-width: 0;
 }
 
 .inline-form {
@@ -1036,7 +1047,7 @@ a:focus-visible {
 /* Responsiveness media queries */
 @media (max-width: 900px) {
   .login-split-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   
   .login-left-panel {
@@ -1045,6 +1056,7 @@ a:focus-visible {
   
   .login-right-panel {
     min-height: 100vh;
+    min-width: 0;
     padding: 24px;
   }
   
@@ -1053,7 +1065,7 @@ a:focus-visible {
   }
   
   .two-column {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1064,6 +1076,8 @@ a:focus-visible {
 
   .login-right-panel {
     min-height: 100dvh;
+    width: 100%;
+    min-width: 0;
     padding: 20px;
     justify-content: flex-start;
   }
@@ -1074,11 +1088,14 @@ a:focus-visible {
 
   .login-right-content {
     flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
     align-items: flex-start;
     padding: 64px 4px 28px;
   }
 
   .login-card-inner {
+    min-width: 0;
     max-width: none;
   }
 
@@ -1426,3 +1443,14 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.global-search{position:relative;z-index:8;max-width:680px;margin:0 auto 18px;padding:0 4px}.global-search>label{display:block;margin:0 0 6px;color:var(--muted,#667085);font-size:.78rem;font-weight:700}.global-search>input{width:100%;height:44px;padding:0 14px;border:1px solid var(--line,#d9e0e8);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit}.global-search-results{position:absolute;top:74px;left:4px;right:4px;max-height:min(60vh,480px);overflow:auto;padding:8px;border:1px solid var(--line,#d9e0e8);border-radius:12px;background:var(--surface,#fff);box-shadow:0 14px 34px #14223820}.global-search-results>p{margin:8px}.global-search-result{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:8px;color:inherit;text-decoration:none}.global-search-result:hover,.global-search-result:focus-visible{background:var(--surface-subtle,#f2f5f8);outline:none}.global-search-result span{color:var(--muted,#667085);font-size:.82rem}
+/* Unified Job Card workspace */
+.workspace-tabs{display:flex;gap:.45rem;overflow-x:auto;padding:.65rem 0;margin:1rem 0;border-bottom:1px solid var(--line,#dce3eb);scrollbar-width:thin}
+.workspace-tabs button{flex:0 0 auto;border:1px solid var(--line,#dce3eb);border-radius:999px;background:var(--surface,#fff);padding:.58rem .9rem;color:var(--text,#243244);font:inherit;cursor:pointer}
+.workspace-tabs button[aria-current=page]{background:var(--ink,#142435);color:#fff;border-color:var(--ink,#142435)}
+.workspace-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+.workspace-info{margin:0}.workspace-info>div{display:grid;grid-template-columns:minmax(8rem, .7fr) 1fr;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--line,#dce3eb)}
+.workspace-info dt{font-weight:600;color:var(--muted,#64748b)}.workspace-info dd{margin:0;overflow-wrap:anywhere}
+.review-history{padding-left:1.3rem}.review-history li{margin:.6rem 0}.review-history span{display:block;color:var(--muted,#64748b);font-size:.9rem}
+@media(max-width:720px){.workspace-grid{grid-template-columns:minmax(0,1fr)}.workspace-info>div{grid-template-columns:1fr;gap:.15rem}.workspace-tabs{margin-inline:-.5rem;padding-inline:.5rem}}

@@ -1,10 +1,16 @@
 import { FormEvent, ReactElement, ReactNode, useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from './auth';
+import { api } from './api';
 import { Button, Card, Field, Status, Logo } from './components';
 import type { Role } from './types';
-type PrimaryRole='Admin'|'Management'|'Consultant';
-const accounts:Record<PrimaryRole,string>={Admin:'admin@dmastru.local',Management:'management@dmastru.local',Consultant:'consultant@dmastru.local'};
+type PrimaryRole='MARKETING_FINANCE'|'ADMIN'|'CONSULTANT'|'MANAGEMENT';
+const portals:{id:PrimaryRole;label:string;roles:Role[]}[]=[
+  {id:'MARKETING_FINANCE',label:'Marketing / Finance Team',roles:['MARKETING']},
+  {id:'ADMIN',label:'Admin Team',roles:['ADMIN']},
+  {id:'CONSULTANT',label:'Consultant',roles:['END_USER']},
+  {id:'MANAGEMENT',label:'Management',roles:['MANAGEMENT','UNIT_REPRESENTATIVE','DIRECTOR']},
+];
 
 export function GuestLayout({ children }: { children: ReactNode }) {
   return (
@@ -27,20 +33,6 @@ export function GuestLayout({ children }: { children: ReactNode }) {
             Sign in to log site visits, update job card status, and stay ahead of mandate renewals across your team.
           </p>
           
-          <div className="guest-stats">
-            <div className="guest-stat-item">
-              <div className="stat-value">128</div>
-              <div className="stat-label">JOB CARDS OPEN</div>
-            </div>
-            <div className="guest-stat-item">
-              <div className="stat-value">34</div>
-              <div className="stat-label">VISITS THIS WEEK</div>
-            </div>
-            <div className="guest-stat-item">
-              <div className="stat-value">6</div>
-              <div className="stat-label">MANDATES DUE</div>
-            </div>
-          </div>
         </div>
       </div>
       
@@ -77,7 +69,8 @@ export function Login(){
     setError('');
     setBusy(true);
     try{
-      await login(email,password)
+      const portal=portals.find(item=>item.id===selected);
+      await login(email,password,portal?.roles)
     }catch(e){
       setError(e instanceof Error?e.message:'Unable to sign in.')
     }finally{
@@ -94,16 +87,12 @@ export function Login(){
           <p className="form-description">Select the portal you want to access.</p>
           
           <div className="role-choice-grid">
-            {(Object.keys(accounts) as PrimaryRole[]).map(role => (
-              <Button key={role} type="button" onClick={() => { setSelected(role); setEmail(accounts[role]); }}>
-                {role} Login
+            {portals.map(portal => (
+              <Button key={portal.id} type="button" onClick={() => { setSelected(portal.id); setEmail(''); }}>
+                {portal.label} Login
               </Button>
             ))}
           </div>
-          
-          <p className="form-footer-link">
-            New consultant? <Link to="/register">Create an End User account</Link>
-          </p>
           
           <p className="form-trouble-help">
             Trouble signing in? Contact your site administrator.
@@ -116,18 +105,18 @@ export function Login(){
   return (
     <GuestLayout>
       <div className="login-card-inner">
-        <span className="form-eyebrow">{selected.toUpperCase()} LOGIN</span>
+        <span className="form-eyebrow">{portals.find(portal=>portal.id===selected)?.label.toUpperCase()} LOGIN</span>
         <h2 className="form-title">Welcome back</h2>
-        <p className="form-description">Enter your credentials to reach your {selected.toLowerCase()} dashboard.</p>
+        <p className="form-description">Enter your credentials to reach the {portals.find(portal=>portal.id===selected)?.label} workspace.</p>
         
         <form onSubmit={submit} noValidate>
           <Field 
-            label="Employee ID or Email" 
+          label="Work email"
             name="email" 
             type="email" 
             autoComplete="email" 
             required 
-            placeholder="e.g. DM-0142 or name@dmastru.com"
+            placeholder="name@company.com"
             value={email} 
             onChange={e => setEmail(e.target.value)} 
           />          <label className="field">
@@ -141,10 +130,6 @@ export function Login(){
           </label>
           
           <div className="form-options">
-            <label className="checkbox-label">
-              <input type="checkbox" defaultChecked />
-              <span>Keep me signed in</span>
-            </label>
             <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
           </div>
 
@@ -162,6 +147,7 @@ export function Login(){
         <p className="form-trouble-help">
           Trouble signing in? Contact your site administrator.
         </p>
+        {selected==='CONSULTANT'&&<p className="form-footer-link">New consultant? <Link to="/register">Create an End User account</Link></p>}
       </div>
     </GuestLayout>
   );
@@ -170,6 +156,7 @@ export function Login(){
 export function ForgotPassword(){
   const [email,setEmail]=useState('');
   const [message,setMessage]=useState('');
+  const [developmentToken,setDevelopmentToken]=useState('');
   const [busy,setBusy]=useState(false);
   
   async function submit(e:FormEvent){
@@ -178,7 +165,7 @@ export function ForgotPassword(){
     try{
       const response=await fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
       const data=await response.json();
-      setMessage(data.message??'If an account exists, reset instructions have been sent.')
+      setMessage(data.message??'If an account exists, reset instructions have been sent.');setDevelopmentToken(data.development_reset_token??'')
     }catch{
       setMessage('Unable to request a reset. Please try again.')
     }finally{
@@ -208,7 +195,7 @@ export function ForgotPassword(){
           </Button>
         </form>
         
-        {message && <p className="form-success-info" role="status">{message}</p>}
+        {message && <p className="form-success-info" role="status">{message}</p>}{developmentToken&&<p>Local development reset link: <Link to={`/reset-password?token=${encodeURIComponent(developmentToken)}`}>Reset password</Link></p>}
         
         <p className="form-footer-link">
           <Link to="/login">Back to sign in</Link>
@@ -218,6 +205,12 @@ export function ForgotPassword(){
   );
 }
 
-export function HomeRedirect(){const {user}=useAuth();const map:Record<Role,string>={ADMIN:'/admin/dashboard',MANAGEMENT:'/management/dashboard',END_USER:'/user/dashboard',UNIT_REPRESENTATIVE:'/approvals',DIRECTOR:'/approvals'};return <Navigate to={user?map[user.role]:'/login'} replace/>}
+export function ResetPassword(){
+  const [params]=useSearchParams();const token=params.get('token')??'';const [message,setMessage]=useState('');const [success,setSuccess]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const values=Object.fromEntries(new FormData(e.currentTarget));try{const result=await api<{message:string}>('/api/auth/reset-password',{method:'POST',body:JSON.stringify({token,new_password:values.new_password,confirm_password:values.confirm_password})});setMessage(result.message);setSuccess(true)}catch(e){setMessage(e instanceof Error?e.message:'Unable to reset password.')}}
+  return <GuestLayout><div className="login-card-inner"><span className="form-eyebrow">ACCOUNT RECOVERY</span><h2 className="form-title">Set a new password</h2>{token?<form className="form-grid" onSubmit={submit}><Field label="New password" name="new_password" type="password" minLength={8} required/><Field label="Confirm new password" name="confirm_password" type="password" minLength={8} required/><Button type="submit">Reset password</Button></form>:<p className="form-error" role="alert">This reset link is missing its token. Request a new link.</p>}{message&&<p className={success?'form-success-info':'form-error'} role="status">{message}</p>}{success&&<Link to="/login">Back to sign in</Link>}{!success&&<p className="form-footer-link"><Link to="/forgot-password">Request another reset link</Link></p>}</div></GuestLayout>;
+}
+
+export function HomeRedirect(){const {user}=useAuth();const map:Record<Role,string>={ADMIN:'/admin/dashboard',MARKETING:'/marketing',MANAGEMENT:'/management/dashboard',END_USER:'/user/dashboard',UNIT_REPRESENTATIVE:'/approvals',DIRECTOR:'/approvals'};return <Navigate to={user?map[user.role]:'/login'} replace/>}
 export function Guard({roles,children}:{roles:Role[];children:ReactElement}){const {user,loading}=useAuth();const location=useLocation();if(loading)return <Loading/>;if(!user)return <Navigate to="/login" state={{from:location}} replace/>;if(!roles.includes(user.role))return <main className="center"><Card title="Access denied"><p>You do not have permission to access this page.</p></Card></main>;return children}
 export function Placeholder({title}:{title:string}){const {user}=useAuth();return <><header className="page-header"><div><p className="eyebrow">{user?.role.replace('_',' ')} WORKSPACE</p><h1>{title}</h1><p className="muted">This secure route is ready for its workflow module.</p></div><Status>Connected</Status></header><Card title="Foundation ready"><p>Authentication, session handling, API authorization, responsive layout, and accessible controls are configured.</p></Card></>}

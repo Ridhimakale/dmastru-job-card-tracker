@@ -19,12 +19,19 @@ services:
       DATABASE_URL: postgresql+psycopg://jobcard:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@database:5432/jobcard
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_EXPIRY_MINUTES: "30"
-      UPLOAD_DIR: /data/uploads
+      UPLOAD_DIR: ${UPLOAD_DIR:-/data/uploads}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://app.example.com}
       HTTPS_ENABLED: ${HTTPS_ENABLED:-true}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-120}
       LOGIN_RATE_LIMIT_MAX_REQUESTS: ${LOGIN_RATE_LIMIT_MAX_REQUESTS:-10}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5173}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-false}
     ports:
       - "8000:8000"
     volumes:

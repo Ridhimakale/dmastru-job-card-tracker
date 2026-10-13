@@ -1,5 +1,7 @@
 import type { ApiError, Session } from './types';
-const API = import.meta.env.VITE_API_URL ?? '';
+// Local Vite development has no VITE_API_URL by default. Point it at the
+// separately running FastAPI service instead of sending /api requests to Vite.
+const API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '');
 let getToken: () => string | null = () => null;
 let onExpired: () => void = () => {};
 export function configureApi(token:()=>string|null, expired:()=>void) { getToken=token; onExpired=expired; }
@@ -30,4 +32,4 @@ export async function downloadFile(path:string, fallbackName:string) {
   // the URL immediately can cancel the download.
   window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export const authApi={ login:(email:string,password:string)=>api<Session>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}), refresh:(refresh_token:string)=>api<Session>('/api/auth/refresh',{method:'POST',body:JSON.stringify({refresh_token})}), logout:()=>api<void>('/api/auth/logout',{method:'POST'}), me:()=>api<Session['user']>('/api/auth/me') };
+export const authApi={ login:(email:string,password:string)=>api<Session>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}), refresh:(refresh_token:string)=>api<Session>('/api/auth/refresh',{method:'POST',body:JSON.stringify({refresh_token})}), logout:(token?:string)=>api<void>('/api/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{}}), me:()=>api<Session['user']>('/api/auth/me') };
