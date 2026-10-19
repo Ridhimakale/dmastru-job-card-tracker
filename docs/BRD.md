@@ -233,6 +233,8 @@ The system shall:
 
 - Support milestones such as M1, M2, and M3.
 - Capture milestone code, name, description, planned visits, start date, closing date, milestone payment date, and portal report submission date.
+- After Finance confirms the client's M1 payment to QCI, allow Admin to assign the consultant and any required subject expert. Show planner bookings across the milestone period; use the Job Card project dates when milestone dates are not set.
+- Keep ZED Silver and Gold milestone mandays fixed at M1=2, M2=6, and M3=6, regardless of package customization.
 - Track actual completed visits per milestone.
 - Calculate milestone progress.
 - Validate milestone closing date is not earlier than start date.
@@ -255,6 +257,8 @@ The system shall:
 - Allow submission of draft visits.
 - Allow reviewer rejection of submitted visits with reason.
 - Allow consultant correction and resubmission of rejected visits.
+- Require every consultant visit report to reference a planned visit; do not provide standalone manual visit entry in the Job Card.
+- Allow each consultant or subject expert to be scheduled for at most one planned or completed visit per day. Reject same-day booking conflicts without an override.
 - Maintain visit history and audit records.
 - Prevent visit creation, edit, submission, rejection, or resubmission once Job Card is completed.
 
@@ -399,6 +403,17 @@ The system shall audit:
 - Report exports where required.
 
 Audit records shall include actor, action, entity type, entity ID, details, timestamp, and old/new values where applicable.
+
+### 7.14 ZED Bronze Certification and Upgrade Referral
+
+- Apply this workflow only when the confirmed enquiry includes the exact service `ZED Bronze`; do not change LEAN, ISO, or Training workflows.
+- After onboarding, Admin records Bronze certification confirmation and uploads the certificate/report against the source enquiry. ZED Bronze certification ends at this step; it must not create a Job Card.
+- ZED Bronze certification is free and requires no Finance payment confirmation.
+- At confirmation, Admin records whether the client is interested in ZED Silver and/or ZED Gold. Marketing records a plan while the client is interested; interest alone must not convert the service or create a Job Card.
+- When the client explicitly accepts one paid Silver or Gold service, Marketing converts the onboarding service to that selected level. Admin can then create the standard paid ZED Job Card, and Finance confirms M1 payment before work/consultant allocation proceeds.
+- If interested, refer the case to Marketing. Marketing records the requested level(s), next-step plan, and follow-up date. Keep the subsequent paid service on its existing enquiry/onboarding/payment process.
+- If not interested, do not create a Marketing upgrade referral.
+- Preserve the certificate/report, confirmation actor and timestamp, client interest response, referral, and Marketing plan in the audit trail.
 
 ## 8. Page Requirements
 
@@ -662,6 +677,8 @@ The release shall be accepted when:
 18. Completed Job Card becomes locked.
 19. Reports and dashboards show final mandays, milestone status, approvals, and completion.
 
+For ZED Bronze enquiries only, Admin onboarding is followed by Bronze certificate/report upload and confirmation; no Job Card or payment confirmation is needed for Bronze. Marketing records a plan if the client is interested. Only after explicit client acceptance of one paid Silver or Gold service is the onboarding converted into the standard paid ZED workflow with a Job Card and M1 payment confirmation. Other service workflows remain unchanged.
+
 ## 16. Risks and Controls
 
 | Risk | Required Control |
@@ -685,4 +702,3 @@ The release shall be accepted when:
 - Role-specific mobile app.
 - Configurable approval chains.
 - Document templates and auto-filled PDF Job Cards.
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    

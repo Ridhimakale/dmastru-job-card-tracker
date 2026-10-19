@@ -6,8 +6,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from xml.sax.saxutils import escape
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
-from .models import Approval, Assignment, Document, JobActivity, JobCard, Milestone, MSME, Payment, PlannedVisit, RecordDocument, User, Visit, WorkflowAction
-from .services import MD_PRECISION, card_dashboard_row, manday_summary, milestone_summary
+from .models import Approval, Assignment, Document, JobActivity, JobCard, Milestone, MilestoneConsultantAllocation, MSME, Payment, PlannedVisit, RecordDocument, User, Visit, WorkflowAction
+from .services import MD_PRECISION, _planner_visit_is_reported, card_dashboard_row, manday_summary, milestone_actual_minutes, milestone_summary
 
 def project_rows(db:Session):
     rows=[]
@@ -18,30 +18,34 @@ def project_rows(db:Session):
 def consultant_rows(db:Session):
     result=[]
     for user in db.scalars(select(User).where(User.role=="END_USER").order_by(User.full_name)):
-        cards=list(db.scalars(select(JobCard).join(Assignment,Assignment.job_card_id==JobCard.id).where(Assignment.user_id==user.id,Assignment.active==True)))
-        visit_rows=db.execute(select(Visit.job_card_id,Visit.working_minutes,JobCard.hours_per_manday).join(JobCard,JobCard.id==Visit.job_card_id).where(or_(Visit.created_by==user.id,Visit.consultant_id==user.id),Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None))).all()
+        cards=list(db.scalars(select(JobCard).join(Milestone,Milestone.job_card_id==JobCard.id).join(MilestoneConsultantAllocation,MilestoneConsultantAllocation.milestone_id==Milestone.id).where(MilestoneConsultantAllocation.consultant_id==user.id,MilestoneConsultantAllocation.active.is_(True)).distinct()))
+        participating=or_(Visit.consultant_id==user.id,Visit.co_consultant_id==user.id,Visit.subject_expert_id==user.id,((Visit.consultant_id.is_(None))&(Visit.co_consultant_id.is_(None))&(Visit.subject_expert_id.is_(None))&(Visit.created_by==user.id)))
+        visit_rows=db.execute(select(Visit.job_card_id,Visit.working_minutes,JobCard.hours_per_manday).join(JobCard,JobCard.id==Visit.job_card_id).where(participating,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None))).all()
         activity_rows=db.execute(select(JobActivity.duration_minutes,JobCard.hours_per_manday).join(JobCard,JobCard.id==JobActivity.job_card_id).where(JobActivity.assigned_user_id==user.id,JobActivity.status=="COMPLETED",JobActivity.visit_id.is_(None))).all()
-        planner_rows=db.execute(select(PlannedVisit.job_card_id,PlannedVisit.actual_date,PlannedVisit.actual_duration_minutes,JobCard.hours_per_manday).join(JobCard,JobCard.id==PlannedVisit.job_card_id).where(PlannedVisit.consultant_id==user.id,PlannedVisit.status=="COMPLETED",~select(Visit.id).where(Visit.job_card_id==PlannedVisit.job_card_id,Visit.visit_date==PlannedVisit.actual_date,Visit.consultant_id==PlannedVisit.consultant_id,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None)).exists())).all()
+        planner_rows=db.execute(select(PlannedVisit.job_card_id,PlannedVisit.actual_date,PlannedVisit.actual_duration_minutes,JobCard.hours_per_manday).join(JobCard,JobCard.id==PlannedVisit.job_card_id).where(or_(PlannedVisit.consultant_id==user.id,PlannedVisit.co_consultant_id==user.id,PlannedVisit.subject_expert_id==user.id),PlannedVisit.status=="COMPLETED",~_planner_visit_is_reported())).all()
         visits=len(visit_rows); minutes=sum(int(row[1]) for row in visit_rows)
         mandays=sum((Decimal(int(row[1]))/(Decimal(str(row[2] or 8))*60) for row in visit_rows),Decimal(0))
         mandays+=sum((Decimal(int(row[0]))/(Decimal(str(row[1] or 8))*60) for row in activity_rows),Decimal(0))
         mandays+=sum((Decimal(int(row[2] or 0))/(Decimal(str(row[3] or 8))*60) for row in planner_rows),Decimal(0))
-        planned=sum((Decimal(str(card.required_md)) for card in cards),Decimal(0));util=(mandays*100/planned).quantize(Decimal(".01")) if planned else Decimal(0);active_allocation=bool(db.scalar(select(Assignment.id).where(Assignment.user_id==user.id,Assignment.active.is_(True),or_(Assignment.allocation_start_date.is_(None),Assignment.allocation_start_date<=date.today()),or_(Assignment.allocation_end_date.is_(None),Assignment.allocation_end_date>=date.today()))));progress=sum((Decimal(str(card_dashboard_row(db,card)["progress"])) for card in cards),Decimal(0))/Decimal(len(cards)) if cards else Decimal(0)
-        result.append({"Consultant ID":user.id,"Consultant":user.full_name,"Assigned Projects":len(cards),"Completed Projects":sum(c.status=="COMPLETED" for c in cards),"Average Project Progress %":str(progress.quantize(Decimal(".01"))),"Visits":visits,"Working Hours":f"{minutes/60:.2f}","Planned MD":str(planned),"Actual MD":f"{mandays.quantize(MD_PRECISION):.4f}","Remaining MD":str((planned-mandays).quantize(MD_PRECISION)),"Utilization %":str(util),"Available":not active_allocation,"Mandays":f"{mandays.quantize(MD_PRECISION):.4f}"})
+        assigned_rows=db.execute(select(Milestone,MilestoneConsultantAllocation.allocated_mandays).join(JobCard,JobCard.id==Milestone.job_card_id).join(MilestoneConsultantAllocation,MilestoneConsultantAllocation.milestone_id==Milestone.id).where(MilestoneConsultantAllocation.consultant_id==user.id,MilestoneConsultantAllocation.active.is_(True),Milestone.status.not_in(("COMPLETED","CANCELLED")),JobCard.deleted_at.is_(None))).all()
+        assigned_milestones=[row[0] for row in assigned_rows]
+        planned=sum((Decimal(str(row[1] or 0)) for row in assigned_rows),Decimal(0));util=(mandays*100/planned).quantize(Decimal(".01")) if planned else Decimal(0);today=date.today();active_allocation=any(milestone.start_date is not None and milestone.start_date<=today and (milestone.closing_date is None or today<=milestone.closing_date) for milestone in assigned_milestones);progress=sum((Decimal(str(card_dashboard_row(db,card)["progress"])) for card in cards),Decimal(0))/Decimal(len(cards)) if cards else Decimal(0)
+        result.append({"Consultant ID":user.id,"Consultant":user.full_name,"Assigned Projects":len(cards),"Completed Projects":sum(c.status=="COMPLETED" for c in cards),"Average Project Progress %":str(progress.quantize(Decimal(".01"))),"Visits":visits,"Working Hours":f"{minutes/60:.2f}","Planned MD":str(planned),"Actual MD":f"{mandays.quantize(MD_PRECISION):.4f}","Remaining MD":str(max(planned-mandays,Decimal(0)).quantize(MD_PRECISION)),"Utilization %":str(util),"Available":not active_allocation,"Mandays":f"{mandays.quantize(MD_PRECISION):.4f}"})
     return result
 def milestone_rows(db:Session):
     result=[]
     for m in db.scalars(select(Milestone).order_by(Milestone.job_card_id,Milestone.code)):
         s=milestone_summary(db,m); card=db.get(JobCard,m.job_card_id)
-        msme=db.get(MSME,card.msme_id);lead=db.scalar(select(Assignment.user_id).where(Assignment.job_card_id==card.id,Assignment.assignment_type=="LEAD_CONSULTANT",Assignment.active==True));actual_minutes=int(db.scalar(select(func.coalesce(func.sum(Visit.working_minutes),0)).where(Visit.milestone_id==m.id,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None))) or 0);actual_md=(Decimal(actual_minutes)/Decimal(60)/Decimal(str(card.hours_per_manday or 8))).quantize(MD_PRECISION);planned_md=Decimal(str(m.planned_mandays or 0));
-        result.append({"Start Date":str(m.start_date or ""),"Job Card ID":card.id,"Job Card":card.number,"MSME ID":msme.id if msme else "","MSME":msme.name if msme else "","Consultant ID":lead or "","Milestone ID":m.id,"Milestone":m.code,"Name":m.name,"Project Status":card_dashboard_row(db,card)["status"],"Planned MD":str(planned_md),"Actual MD":str(actual_md),"Remaining MD":str((planned_md-actual_md).quantize(MD_PRECISION)),"Variance MD":str((actual_md-planned_md).quantize(MD_PRECISION)),"Planned Visits":m.planned_visits,"Completed Visits":s["actual_visits"],"Progress %":str(s["progress"]),"Closing Date":str(m.closing_date or ""),"Payment Date":str(m.payment_date or ""),"Portal Report Submission Date":str(m.portal_report_submission_date or ""),"Status":s["status"]})
+        msme=db.get(MSME,card.msme_id);lead=m.responsible_consultant_id;actual_minutes=milestone_actual_minutes(db,m,card);actual_md=(Decimal(actual_minutes)/(Decimal(str(card.hours_per_manday or 8))*60)).quantize(MD_PRECISION);planned_md=Decimal(str(m.planned_mandays or 0));
+        result.append({"Start Date":str(m.start_date or ""),"Job Card ID":card.id,"Job Card":card.number,"MSME ID":msme.id if msme else "","MSME":msme.name if msme else "","Consultant ID":lead or "","Milestone ID":m.id,"Milestone":m.code,"Name":m.name,"Project Status":card_dashboard_row(db,card)["status"],"Planned MD":str(planned_md),"Actual MD":str(actual_md),"Remaining MD":str(max(planned_md-actual_md,Decimal(0)).quantize(MD_PRECISION)),"Variance MD":str((actual_md-planned_md).quantize(MD_PRECISION)),"Planned Visits":m.planned_visits,"Completed Visits":s["actual_visits"],"Progress %":str(s["progress"]),"Closing Date":str(m.closing_date or ""),"Payment Date":str(m.payment_date or ""),"Portal Report Submission Date":str(m.portal_report_submission_date or ""),"Status":s["status"]})
     return result
 def visit_rows(db:Session):
     result=[]
     lead=aliased(User); co=aliased(User); expert=aliased(User)
     rows=db.execute(select(Visit,JobCard,MSME,User,lead,co,expert).join(JobCard,JobCard.id==Visit.job_card_id).join(MSME,MSME.id==JobCard.msme_id).join(User,User.id==Visit.created_by).outerjoin(lead,lead.id==Visit.consultant_id).outerjoin(co,co.id==Visit.co_consultant_id).outerjoin(expert,expert.id==Visit.subject_expert_id).where(Visit.deleted_at==None,JobCard.deleted_at==None).order_by(Visit.visit_date.desc()))
     for visit,card,msme,user,lead_user,co_user,expert_user in rows:
-        mandays=Decimal(visit.working_minutes)/(Decimal(str(card.hours_per_manday or 8))*60)
+        team={person.id for person in (lead_user,co_user,expert_user) if person is not None}
+        mandays=Decimal(visit.working_minutes*max(len(team),1))/(Decimal(str(card.hours_per_manday or 8))*60)
         result.append({"Date":str(visit.visit_date),"Job Card ID":card.id,"Job Card":card.number,"MSME ID":msme.id,"MSME":msme.name,"Consultant ID":visit.consultant_id or "","Recorded By":user.full_name,"Consultant":lead_user.full_name if lead_user else "","Co-Consultant":co_user.full_name if co_user else "","Subject Expert":expert_user.full_name if expert_user else "","Visit":visit.visit_number,"Hours":f"{visit.working_minutes/60:.2f}","Mandays":f"{mandays.quantize(MD_PRECISION):.4f}","Visit Type":"REPORTED","Status":visit.status,"Rating":visit.rating_code,"Work Details":visit.work_details})
     for planned,card,msme,consultant in db.execute(select(PlannedVisit,JobCard,MSME,User).join(JobCard,JobCard.id==PlannedVisit.job_card_id).join(MSME,MSME.id==JobCard.msme_id).join(User,User.id==PlannedVisit.consultant_id).where(JobCard.deleted_at.is_(None),PlannedVisit.status.in_(("PLANNED","COMPLETED"))).order_by(PlannedVisit.visit_date.desc())):
         minutes=planned.actual_duration_minutes if planned.status=="COMPLETED" else planned.expected_duration_minutes
@@ -86,7 +90,11 @@ def to_csv(items:list[dict]):
     out=StringIO(); writer=csv.DictWriter(out,fieldnames=fields); writer.writeheader(); writer.writerows(items); return out.getvalue().encode()
 def to_xlsx(items:list[dict]):
     fields=list(items[0]) if items else ["No data"]
-    def row(values): return "<row>"+"".join(f'<c t="inlineStr"><is><t>{escape(str(v))}</t></is></c>' for v in values)+"</row>"
+    def cell(value):
+        text=str(value or "")
+        if text.startswith("=") and len(text)>1: return f'<c><f>{escape(text[1:])}</f><v></v></c>'
+        return f'<c t="inlineStr"><is><t>{escape(text)}</t></is></c>'
+    def row(values): return "<row>"+"".join(cell(v) for v in values)+"</row>"
     sheet='<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+row(fields)+''.join(row([x.get(f,"") for f in fields]) for x in items)+"</sheetData></worksheet>"
     buf=BytesIO()
     with ZipFile(buf,"w",ZIP_DEFLATED) as z:

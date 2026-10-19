@@ -26,11 +26,15 @@ class User(Base):
     department_id: Mapped[int|None]=mapped_column(ForeignKey("departments.id"),nullable=True,index=True)
     status: Mapped[AccountStatus]=mapped_column(Enum(AccountStatus),default=AccountStatus.PENDING_ACTIVATION,index=True)
     password_hash: Mapped[str]=mapped_column(String(512))
+    password_change_required: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
     failed_attempts: Mapped[int]=mapped_column(Integer,default=0)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
     last_login_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
     reset_token_hash: Mapped[str|None]=mapped_column(String(128),nullable=True,index=True)
     reset_expires_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    mfa_secret_encrypted: Mapped[str|None]=mapped_column(String(512),nullable=True)
+    mfa_enabled: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    mfa_last_counter: Mapped[int|None]=mapped_column(Integer,nullable=True)
 class AuthSession(Base):
     __tablename__="auth_sessions"
     id: Mapped[str]=mapped_column(String(64),primary_key=True)
@@ -39,6 +43,26 @@ class AuthSession(Base):
     revoked: Mapped[bool]=mapped_column(Boolean,default=False)
     refresh_token_hash: Mapped[str|None]=mapped_column(String(128),nullable=True,index=True)
     refresh_expires_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    mfa_verified: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+
+class GoogleWorkspaceAccount(Base):
+    __tablename__="google_workspace_accounts"
+    id: Mapped[int]=mapped_column(primary_key=True)
+    user_id: Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"),unique=True,index=True)
+    google_email: Mapped[str]=mapped_column(String(320))
+    refresh_token_encrypted: Mapped[str]=mapped_column(String(2048))
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+    updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,onupdate=now)
+
+class AuthMfaChallenge(Base):
+    __tablename__="auth_mfa_challenges"
+    id: Mapped[int]=mapped_column(primary_key=True)
+    token_hash: Mapped[str]=mapped_column(String(64),unique=True,index=True)
+    user_id: Mapped[int]=mapped_column(ForeignKey("users.id",ondelete="CASCADE"),index=True)
+    expires_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),index=True)
+    attempts: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    used_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
 
 class BusinessSequence(Base):
     __tablename__="business_sequences"
@@ -112,7 +136,8 @@ class Payment(Base):
     __table_args__=(CheckConstraint("amount_due > 0",name="ck_payments_amount_due_positive"),CheckConstraint("amount_paid >= 0 AND amount_paid <= amount_due",name="ck_payments_amount_paid_range"),CheckConstraint("status IN ('PENDING','INVOICE_RAISED','PARTIALLY_PAID','PAID','OVERDUE','CANCELLED')",name="ck_payments_status"),Index("uq_payments_project_invoice","job_card_id",unique=True,sqlite_where=text("milestone_id IS NULL AND status != 'CANCELLED'"),postgresql_where=text("milestone_id IS NULL AND status != 'CANCELLED'")),Index("uq_payments_milestone_invoice","milestone_id",unique=True,sqlite_where=text("milestone_id IS NOT NULL AND status != 'CANCELLED'"),postgresql_where=text("milestone_id IS NOT NULL AND status != 'CANCELLED'")))
     id: Mapped[int]=mapped_column(primary_key=True)
     invoice_number: Mapped[str]=mapped_column(String(32),unique=True)
-    job_card_id: Mapped[int]=mapped_column(ForeignKey("job_cards.id"),index=True)
+    job_card_id: Mapped[int|None]=mapped_column(ForeignKey("job_cards.id"),nullable=True,index=True)
+    enquiry_id: Mapped[UUID|None]=mapped_column(Uuid(as_uuid=True),ForeignKey("enquiries.id"),nullable=True,index=True)
     milestone_id: Mapped[int|None]=mapped_column(ForeignKey("milestones.id"),nullable=True,index=True)
     source_ticket_id: Mapped[UUID|None]=mapped_column(Uuid(as_uuid=True),ForeignKey("tickets.id"),nullable=True,index=True)
     description: Mapped[str]=mapped_column(String(240))
@@ -136,6 +161,16 @@ class PaymentReceipt(Base):
     received_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
     confirmed_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
+
+class ClientMilestonePayment(Base):
+    """Finance's record that the client paid QCI for a milestone."""
+    __tablename__="client_milestone_payments"
+    id: Mapped[int]=mapped_column(primary_key=True)
+    milestone_id: Mapped[int]=mapped_column(ForeignKey("milestones.id",ondelete="CASCADE"),unique=True,index=True)
+    external_reference: Mapped[str|None]=mapped_column(String(120),nullable=True)
+    remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
+    confirmed_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    confirmed_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
 
 class Ticket(Base):
     __tablename__="tickets"
@@ -174,7 +209,7 @@ class TicketAttachment(Base):
 
 class Enquiry(Base):
     __tablename__="enquiries"
-    __table_args__=(CheckConstraint("status IN ('NEW','CONTACTED','FOLLOW_UP','QUALIFIED','FINALISED','LOST','CANCELLED','CONVERTED')",name="ck_enquiries_status"),Index("uq_enquiries_source_ticket","source_ticket_id",unique=True,sqlite_where=text("source_ticket_id IS NOT NULL"),postgresql_where=text("source_ticket_id IS NOT NULL")))
+    __table_args__=(CheckConstraint("status IN ('NEW','CONTACTED','QUALIFIED','LOST','CANCELLED','CONVERTED')",name="ck_enquiries_status"),Index("uq_enquiries_source_ticket","source_ticket_id",unique=True,sqlite_where=text("source_ticket_id IS NOT NULL"),postgresql_where=text("source_ticket_id IS NOT NULL")))
     id: Mapped[UUID]=mapped_column(Uuid(as_uuid=True),primary_key=True,default=uuid4)
     number: Mapped[str]=mapped_column(String(24),unique=True,index=True)
     source_ticket_id: Mapped[UUID|None]=mapped_column(Uuid(as_uuid=True),ForeignKey("tickets.id"),nullable=True,index=True)
@@ -185,19 +220,84 @@ class Enquiry(Base):
     phone: Mapped[str|None]=mapped_column(String(40),nullable=True,index=True)
     industry: Mapped[str|None]=mapped_column(String(120),nullable=True,index=True)
     location: Mapped[str|None]=mapped_column(String(200),nullable=True,index=True)
+    enquiry_for: Mapped[list[str]|None]=mapped_column(JSON,nullable=True)
+    zed_id: Mapped[str|None]=mapped_column(String(120),nullable=True,index=True)
+    zed_pass_encrypted: Mapped[str|None]=mapped_column(String(1000),nullable=True)
+    feedback: Mapped[str|None]=mapped_column(Text,nullable=True)
+    referral_consultant_id: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     requirement: Mapped[str]=mapped_column(Text)
     enquiry_date: Mapped[date]=mapped_column(Date,index=True)
+    deadline_date: Mapped[date|None]=mapped_column(Date,nullable=True,index=True)
     source: Mapped[str|None]=mapped_column(String(80),nullable=True,index=True)
     package_code: Mapped[str|None]=mapped_column(String(64),nullable=True,index=True)
     expected_scope: Mapped[str|None]=mapped_column(Text,nullable=True)
     expected_commercial_amount: Mapped[float|None]=mapped_column(Numeric(12,2),nullable=True)
     assigned_marketing_user_id: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     status: Mapped[str]=mapped_column(String(24),default="NEW",index=True)
+    management_approval_status: Mapped[str]=mapped_column(String(24),default="NOT_REQUIRED",index=True)
+    management_approval_comment: Mapped[str|None]=mapped_column(Text,nullable=True)
+    management_approved_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
+    management_approved_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    client_meeting_type: Mapped[str|None]=mapped_column(String(16),nullable=True)
+    client_meeting_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    client_meeting_completed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    client_briefing_service_name: Mapped[str|None]=mapped_column(String(250),nullable=True)
+    client_briefing_package_code: Mapped[str|None]=mapped_column(String(64),nullable=True)
+    client_briefing_planned_mandays: Mapped[float|None]=mapped_column(Numeric(10,2),nullable=True)
+    client_briefing_timeline_start: Mapped[date|None]=mapped_column(Date,nullable=True)
+    client_briefing_timeline_end: Mapped[date|None]=mapped_column(Date,nullable=True)
+    client_briefing_scope: Mapped[str|None]=mapped_column(Text,nullable=True)
+    client_confirmation_status: Mapped[str]=mapped_column(String(24),default="NOT_SCHEDULED",nullable=False,index=True)
+    client_confirmation_note: Mapped[str|None]=mapped_column(Text,nullable=True)
+    client_confirmation_recorded_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    client_confirmation_recorded_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
     follow_up_date: Mapped[date|None]=mapped_column(Date,nullable=True,index=True)
     remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
     created_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
     updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,onupdate=now)
+
+    @property
+    def zed_pass_set(self): return bool(self.zed_pass_encrypted)
+
+class EnquiryOnboarding(Base):
+    __tablename__="enquiry_onboardings"
+    __table_args__=(
+        CheckConstraint("status IN ('PAYMENT_PENDING','PAYMENT_CONFIRMED','ONBOARDED','JOB_CARD_CREATED')",name="ck_enquiry_onboardings_status"),
+        CheckConstraint("commercial_amount IS NULL OR commercial_amount >= 0",name="ck_enquiry_onboardings_commercial_amount"),
+        UniqueConstraint("enquiry_id",name="uq_enquiry_onboardings_enquiry_id"),
+    )
+    id: Mapped[int]=mapped_column(primary_key=True)
+    enquiry_id: Mapped[UUID]=mapped_column(Uuid(as_uuid=True),ForeignKey("enquiries.id",ondelete="CASCADE"),index=True)
+    msme_id: Mapped[int]=mapped_column(ForeignKey("msmes.id"),index=True)
+    service_name: Mapped[str]=mapped_column(String(250))
+    project_name: Mapped[str]=mapped_column(String(200))
+    scope: Mapped[str]=mapped_column(Text)
+    location: Mapped[str]=mapped_column(String(160))
+    package_code: Mapped[str|None]=mapped_column(String(64),nullable=True,index=True)
+    planned_mandays: Mapped[float|None]=mapped_column(Numeric(10,2),nullable=True)
+    project_timeline_start: Mapped[date|None]=mapped_column(Date,nullable=True)
+    project_timeline_end: Mapped[date|None]=mapped_column(Date,nullable=True)
+    commercial_amount: Mapped[float|None]=mapped_column(Numeric(12,2),nullable=True)
+    initial_payment_amount: Mapped[float]=mapped_column(Numeric(12,2),default=0)
+    status: Mapped[str]=mapped_column(String(32),default="ONBOARDED",index=True)
+    created_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+    updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,onupdate=now)
+    payment_confirmed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    job_card_id: Mapped[int|None]=mapped_column(ForeignKey("job_cards.id"),nullable=True,index=True)
+    zed_bronze_certification_status: Mapped[str]=mapped_column(String(24),default="NOT_REQUIRED",nullable=False,index=True)
+    zed_bronze_certificate_number: Mapped[str|None]=mapped_column(String(120),nullable=True)
+    zed_bronze_report_document_id: Mapped[int|None]=mapped_column(ForeignKey("enquiry_documents.id"),nullable=True)
+    zed_bronze_confirmed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    zed_bronze_confirmed_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
+    zed_silver_gold_interest: Mapped[str|None]=mapped_column(String(8),nullable=True)
+    zed_marketing_plan_status: Mapped[str]=mapped_column(String(16),default="NOT_REQUIRED",nullable=False,index=True)
+    zed_marketing_plan_services: Mapped[str|None]=mapped_column(String(64),nullable=True)
+    zed_marketing_plan_notes: Mapped[str|None]=mapped_column(Text,nullable=True)
+    zed_marketing_plan_due_date: Mapped[date|None]=mapped_column(Date,nullable=True)
+    zed_marketing_planned_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    zed_marketing_planned_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
 
 class TicketRelationship(Base):
     __tablename__="ticket_relationships"
@@ -221,6 +321,7 @@ class EnquiryFollowUp(Base):
     person_contacted: Mapped[str|None]=mapped_column(String(160),nullable=True)
     notes: Mapped[str]=mapped_column(Text)
     next_follow_up_date: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True,index=True)
+    next_follow_up_type: Mapped[str|None]=mapped_column(String(32),nullable=True,index=True)
     responsible_user_id: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     status: Mapped[str]=mapped_column(String(24),default="COMPLETED",index=True)
     attachment_name: Mapped[str|None]=mapped_column(String(255),nullable=True)
@@ -267,6 +368,7 @@ class JobCard(Base):
     source_enquiry_id: Mapped[UUID|None]=mapped_column(Uuid(as_uuid=True),ForeignKey("enquiries.id"),nullable=True,index=True)
     msme_id: Mapped[int]=mapped_column(ForeignKey("msmes.id"),index=True)
     project_name: Mapped[str|None]=mapped_column(String(200),nullable=True)
+    service_name: Mapped[str|None]=mapped_column(String(250),nullable=True)
     package_code: Mapped[str|None]=mapped_column(String(64),nullable=True,index=True)
     scope: Mapped[str|None]=mapped_column(Text,nullable=True)
     commercial_amount: Mapped[float|None]=mapped_column(Numeric(12,2),nullable=True)
@@ -317,6 +419,17 @@ class Milestone(Base):
     portal_report_submission_date: Mapped[date|None]=mapped_column(Date,nullable=True)
     responsible_consultant_id: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     status: Mapped[str]=mapped_column(String(32),default="NOT_STARTED")
+class MilestoneConsultantAllocation(Base):
+    __tablename__="milestone_consultant_allocations"
+    __table_args__=(Index("ix_milestone_consultant_alloc_active","milestone_id","active"),Index("ix_consultant_alloc_active","consultant_id","active"))
+    id: Mapped[int]=mapped_column(primary_key=True)
+    milestone_id: Mapped[int]=mapped_column(ForeignKey("milestones.id",ondelete="CASCADE"),index=True)
+    consultant_id: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    allocated_mandays: Mapped[float]=mapped_column(Numeric(10,2))
+    assigned_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
+    assigned_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+    active: Mapped[bool]=mapped_column(Boolean,default=True,index=True)
+    ended_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
 class MilestoneReviewHistory(Base):
     __tablename__="milestone_review_history"
     __table_args__=(Index("ix_milestone_review_cycle_stage","milestone_id","cycle","stage"),)
@@ -328,6 +441,19 @@ class MilestoneReviewHistory(Base):
     comment: Mapped[str|None]=mapped_column(Text,nullable=True)
     decided_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
+
+class EnquirySLABreach(Base):
+    __tablename__="enquiry_sla_breaches"
+    __table_args__=(CheckConstraint("breach_type IN ('REQUEST_RESPONSE','FOLLOW_UP')",name="ck_enquiry_sla_breach_type"),CheckConstraint("status IN ('OPEN','RESOLVED')",name="ck_enquiry_sla_breach_status"),Index("uq_enquiry_sla_followup_type","follow_up_id","breach_type",unique=True,sqlite_where=text("follow_up_id IS NOT NULL"),postgresql_where=text("follow_up_id IS NOT NULL")),Index("uq_enquiry_sla_initial_response","enquiry_id","breach_type",unique=True,sqlite_where=text("follow_up_id IS NULL"),postgresql_where=text("follow_up_id IS NULL")))
+    id: Mapped[int]=mapped_column(primary_key=True)
+    enquiry_id: Mapped[UUID]=mapped_column(Uuid(as_uuid=True),ForeignKey("enquiries.id",ondelete="CASCADE"),index=True)
+    follow_up_id: Mapped[int|None]=mapped_column(ForeignKey("enquiry_followups.id",ondelete="CASCADE"),nullable=True,index=True)
+    breach_type: Mapped[str]=mapped_column(String(32),index=True)
+    due_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),index=True)
+    breached_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
+    resolved_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    status: Mapped[str]=mapped_column(String(16),default="OPEN",index=True)
+    created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
 class ActivityType(Base):
     __tablename__="activity_types"
     id: Mapped[int]=mapped_column(primary_key=True)
@@ -337,19 +463,26 @@ class ActivityType(Base):
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
 class JobActivity(Base):
     __tablename__="job_activities"
-    __table_args__=(CheckConstraint("status IN ('PLANNED','IN_PROGRESS','COMPLETED','CANCELLED')",name="ck_job_activities_status"),Index("ix_job_activities_card_date","job_card_id","start_date"))
+    __table_args__=(CheckConstraint("status IN ('PLANNED','IN_PROGRESS','COMPLETED','CANCELLED')",name="ck_job_activities_status"),Index("ix_job_activities_card_date","job_card_id","start_date"),UniqueConstraint("planned_visit_id","name",name="uq_job_activity_planned_visit_name"))
     id: Mapped[int]=mapped_column(primary_key=True)
     job_card_id: Mapped[int]=mapped_column(ForeignKey("job_cards.id",ondelete="CASCADE"),index=True)
     milestone_id: Mapped[int]=mapped_column(ForeignKey("milestones.id"),index=True)
     visit_id: Mapped[int|None]=mapped_column(ForeignKey("visits.id"),nullable=True,index=True)
+    planned_visit_id: Mapped[int|None]=mapped_column(ForeignKey("planned_visits.id",ondelete="CASCADE"),nullable=True,index=True)
     activity_type_id: Mapped[int]=mapped_column(ForeignKey("activity_types.id"),index=True)
     name: Mapped[str]=mapped_column(String(200))
     description: Mapped[str]=mapped_column(Text)
     assigned_user_id: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     start_date: Mapped[date|None]=mapped_column(Date,nullable=True,index=True)
     end_date: Mapped[date|None]=mapped_column(Date,nullable=True)
+    expected_completion_date: Mapped[date|None]=mapped_column(Date,nullable=True,index=True)
+    sla_due_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True,index=True)
     duration_minutes: Mapped[int]=mapped_column(Integer,default=0)
     status: Mapped[str]=mapped_column(String(24),default="PLANNED",index=True)
+    review_status: Mapped[str]=mapped_column(String(24),default="NOT_SUBMITTED",server_default="NOT_SUBMITTED",index=True)
+    review_remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
+    reviewed_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
+    reviewed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
     remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
     created_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
@@ -364,12 +497,29 @@ class JobActivityAttachment(Base):
     mime_type: Mapped[str]=mapped_column(String(120))
     uploaded_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     uploaded_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
+    status: Mapped[str]=mapped_column(String(24),default="DRAFT",server_default="DRAFT",index=True)
+    review_remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
+    reviewed_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
+    reviewed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+class ZedReferenceDocument(Base):
+    __tablename__="zed_reference_documents"
+    id: Mapped[int]=mapped_column(primary_key=True)
+    visit_number: Mapped[int]=mapped_column(Integer,index=True)
+    activity_name: Mapped[str]=mapped_column(String(240),index=True)
+    file_name: Mapped[str]=mapped_column(String(255))
+    storage_key: Mapped[str]=mapped_column(String(255),unique=True)
+    file_size: Mapped[int]=mapped_column(Integer)
+    mime_type: Mapped[str]=mapped_column(String(120))
+    active: Mapped[bool]=mapped_column(Boolean,default=True,index=True)
+    uploaded_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    uploaded_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
 class Visit(Base):
     __tablename__="visits"
     __table_args__=(UniqueConstraint("job_card_id","visit_number",name="uq_visit_number_per_job_card"),)
     id: Mapped[int]=mapped_column(primary_key=True)
     job_card_id: Mapped[int]=mapped_column(ForeignKey("job_cards.id"),index=True)
     milestone_id: Mapped[int]=mapped_column(ForeignKey("milestones.id"),index=True)
+    planned_visit_id: Mapped[int|None]=mapped_column(ForeignKey("planned_visits.id",ondelete="SET NULL"),nullable=True,index=True)
     visit_number: Mapped[int]=mapped_column(Integer)
     visit_date: Mapped[date]=mapped_column(Date,index=True)
     start_time: Mapped[time|None]=mapped_column(Time,nullable=True)
@@ -409,9 +559,12 @@ class PlannedVisit(Base):
     __tablename__="planned_visits"
     __table_args__=(Index("ix_planned_visits_consultant_date","consultant_id","visit_date"),)
     id: Mapped[int]=mapped_column(primary_key=True)
+    visit_number: Mapped[int|None]=mapped_column(Integer,nullable=True,index=True)
     job_card_id: Mapped[int]=mapped_column(ForeignKey("job_cards.id",ondelete="CASCADE"),index=True)
     milestone_id: Mapped[int]=mapped_column(ForeignKey("milestones.id",ondelete="CASCADE"),index=True)
     consultant_id: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    co_consultant_id: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
+    subject_expert_id: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     visit_date: Mapped[date]=mapped_column(Date,index=True)
     start_time: Mapped[time]=mapped_column(Time)
     expected_duration_minutes: Mapped[int]=mapped_column(Integer)
@@ -423,6 +576,15 @@ class PlannedVisit(Base):
     actual_start_time: Mapped[time|None]=mapped_column(Time,nullable=True)
     actual_duration_minutes: Mapped[int|None]=mapped_column(Integer,nullable=True)
     outcome: Mapped[str|None]=mapped_column(Text,nullable=True)
+    attachment_name: Mapped[str|None]=mapped_column(String(255),nullable=True)
+    attachment_mime_type: Mapped[str|None]=mapped_column(String(120),nullable=True)
+    attachment_key: Mapped[str|None]=mapped_column(String(64),nullable=True)
+    admin_escalated_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    management_escalated_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    admin_email_attempted_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    admin_email_sent_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    management_email_attempted_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    management_email_sent_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
     created_by: Mapped[int]=mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
     updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,onupdate=now)
@@ -449,6 +611,9 @@ class RecordDocument(Base):
     storage_key: Mapped[str]=mapped_column(String(255),unique=True)
     file_size: Mapped[int]=mapped_column(Integer)
     mime_type: Mapped[str]=mapped_column(String(120))
+    editor_provider: Mapped[str|None]=mapped_column(String(24),nullable=True)
+    google_file_id: Mapped[str|None]=mapped_column(String(160),nullable=True,index=True)
+    google_file_url: Mapped[str|None]=mapped_column(String(1000),nullable=True)
     version: Mapped[int]=mapped_column(Integer,default=1)
     status: Mapped[str]=mapped_column(String(24),default="SUBMITTED",index=True)
     remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
@@ -456,6 +621,8 @@ class RecordDocument(Base):
     uploaded_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
     reviewed_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True,index=True)
     reviewed_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True,index=True)
+    deleted_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+    deleted_by: Mapped[int|None]=mapped_column(ForeignKey("users.id"),nullable=True)
 class Document(Base):
     __tablename__="documents"
     id: Mapped[int]=mapped_column(primary_key=True)

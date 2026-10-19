@@ -1,7 +1,7 @@
-import type { ApiError, Session } from './types';
-// Local Vite development has no VITE_API_URL by default. Point it at the
-// separately running FastAPI service instead of sending /api requests to Vite.
-const API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '');
+import type { ApiError, LoginResponse, MfaSetup, Session } from './types';
+// In local development, let Vite proxy /api to FastAPI so browser requests stay
+// same-origin. Production can set VITE_API_URL when the API uses another host.
+const API = import.meta.env.VITE_API_URL ?? '';
 let getToken: () => string | null = () => null;
 let onExpired: () => void = () => {};
 export function configureApi(token:()=>string|null, expired:()=>void) { getToken=token; onExpired=expired; }
@@ -11,7 +11,11 @@ export async function api<T>(path:string, init:RequestInit = {}):Promise<T> {
   const token=getToken(); if(token) headers.set('Authorization',`Bearer ${token}`);
   const response=await fetch(`${API}${path}`,{...init,headers});
   if(response.status===401 && token) onExpired();
-  if(!response.ok){ const data=await response.json().catch(()=>({} as ApiError)) as ApiError; throw new Error(data.error?.message ?? 'Unable to complete the request.'); }
+  if(!response.ok){
+    const payload=await response.json().catch(()=>null) as ApiError|null;
+    const message=payload?.error?.message;
+    throw new Error(message || `Request failed (HTTP ${response.status}).`);
+  }
   if(response.status===204) return undefined as T;
   return response.json() as Promise<T>;
 }
@@ -32,4 +36,4 @@ export async function downloadFile(path:string, fallbackName:string) {
   // the URL immediately can cancel the download.
   window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export const authApi={ login:(email:string,password:string)=>api<Session>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}), refresh:(refresh_token:string)=>api<Session>('/api/auth/refresh',{method:'POST',body:JSON.stringify({refresh_token})}), logout:(token?:string)=>api<void>('/api/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{}}), me:()=>api<Session['user']>('/api/auth/me') };
+export const authApi={ login:(email:string,password:string)=>api<LoginResponse>('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}), setupMfa:(challenge_token:string)=>api<MfaSetup>('/api/auth/mfa/setup',{method:'POST',body:JSON.stringify({challenge_token})}), verifyMfa:(challenge_token:string,code:string,setup:boolean)=>api<Session>(setup?'/api/auth/mfa/setup/verify':'/api/auth/mfa/verify',{method:'POST',body:JSON.stringify({challenge_token,code})}), refresh:(refresh_token:string)=>api<Session>('/api/auth/refresh',{method:'POST',body:JSON.stringify({refresh_token})}), logout:(token?:string)=>api<void>('/api/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{}}), me:()=>api<Session['user']>('/api/auth/me') };

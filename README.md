@@ -12,6 +12,8 @@ Role-based web application for MSME Job Cards, consultant visits, mandays, miles
 - `backend/alembic`: versioned database migrations.
 - `docs`: product requirements and deployment guidance.
 
+Consultants create and edit work products in Google Docs or Google Sheets. The portal stores a linked draft, syncs a DOCX/XLSX copy while the Job Card workspace is open, and refreshes the copy immediately before submission to the existing Admin approval flow. Google OAuth credentials are required; see `DEPLOYMENT.md`.
+
 ## Local setup
 
 Backend (Python 3.12+):
@@ -21,7 +23,7 @@ cd backend
 python -m pip install -r requirements.txt
 python -m alembic upgrade head
 python -m app.seed
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 Frontend (Node 22+):

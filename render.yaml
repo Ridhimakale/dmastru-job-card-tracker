@@ -31,10 +31,18 @@ services:
         value: "120"
       - key: LOGIN_RATE_LIMIT_MAX_REQUESTS
         value: "10"
+      - key: MFA_REQUIRED
+        value: "false"
       # Set this in Render after the static site's URL is known.
       - key: CORS_ORIGINS
         sync: false
       - key: PUBLIC_APP_URL
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false
       - key: SMTP_HOST
         sync: false

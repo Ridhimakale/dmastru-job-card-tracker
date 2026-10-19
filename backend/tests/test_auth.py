@@ -489,3 +489,69 @@ with TestClient(app) as client:
         assert cancelled.status_code==200 and cancelled.json()['status']=='CANCELLED'
         filtered=client.get(f"/api/planned-visits?job_card_id={card['id']}&start_date={planned_date}&end_date={planned_date}",headers=mh)
         assert filtered.status_code==200 and len(filtered.json())==2
+
+    def test_finance_onboarding_handoff_and_milestone_payment_gate():
+        admin=client.post('/api/auth/login',json={'email':'admin@dmastru.local','password':'Admin@123'}).json()['access_token']
+        marketing=client.post('/api/auth/login',json={'email':'marketing@dmastru.local','password':'Marketing@123'}).json()['access_token']
+        consultant=client.post('/api/auth/login',json={'email':'consultant@dmastru.local','password':'Consult@123'}).json()
+        ah={'Authorization':'Bearer '+admin};kh={'Authorization':'Bearer '+marketing};ch={'Authorization':'Bearer '+consultant['access_token']}
+        created_finance=client.post('/api/users',headers=ah,json={'full_name':'Onboarding Finance','email':'onboarding.finance@example.com','password':'Finance@123','role':'FINANCE'})
+        assert created_finance.status_code==201,created_finance.text
+        finance_login=client.post('/api/auth/login',json={'email':'onboarding.finance@example.com','password':'Finance@123'})
+        assert finance_login.status_code==200,finance_login.text
+        fh={'Authorization':'Bearer '+finance_login.json()['access_token']}
+        enquiry=client.post('/api/enquiries',headers=kh,json={'company_name':'Onboarding Acceptance Ltd','contact_person':'Mira Rao','email':'mira@onboarding.example','phone':'9876543210','industry':'Manufacturing','location':'Pune','requirement':'ZED Silver certification support','deadline_date':'2026-11-30','enquiry_for':['ZED Silver'],'zed_id':'ZED-ONBOARD-1','source':'MARKETING_TEAM','expected_scope':'Certification readiness and onboarding support'})
+        assert enquiry.status_code==201,enquiry.text
+        assert client.patch(f"/api/enquiries/{enquiry.json()['id']}",headers=kh,json={'status':'CONVERTED'}).status_code==409
+        qualified=client.patch(f"/api/enquiries/{enquiry.json()['id']}",headers=kh,json={'status':'QUALIFIED'})
+        assert qualified.status_code==200
+        converted=client.patch(f"/api/enquiries/{enquiry.json()['id']}",headers=kh,json={'status':'CONVERTED'})
+        assert converted.status_code==200
+        assert any('ready for onboarding' in row['message'] for row in client.get('/api/notifications',headers=ah).json())
+        onboarding=client.post(f"/api/admin/enquiries/{enquiry.json()['id']}/onboarding",headers=ah,json={'service_name':'ZED Silver','scope':'Onboarding specific certification readiness scope','location':'Pune'})
+        assert onboarding.status_code==201,onboarding.text
+        assert onboarding.json()['msme_code'].startswith('DMMSME-')
+        assert onboarding.json()['status']=='ONBOARDED' and onboarding.json()['project_name'].startswith('DMPRJ-')
+        assert client.post(f"/api/onboardings/{onboarding.json()['id']}/invoice",headers=ah,json={'description':'Unauthorized initial invoice','amount_due':'1000'}).status_code==403
+        admin_ready=client.get('/api/admin/onboardings/ready-for-job-card',headers=ah).json()['items']
+        ready=next(item for item in admin_ready if item['id']==onboarding.json()['id'])
+        assert 'payment' not in ready
+        assert client.get(f"/api/job-cards/{1}/payments",headers=ah).status_code==403
+        card=client.post('/api/job-cards',headers=ah,json={'source_enquiry_id':enquiry.json()['id'],'project_name':'Should be inherited','service_name':'ZED Silver','scope':'Should be inherited','msme_id':onboarding.json()['msme_id'],'location':'Pune','project_start_date':'2026-11-01','project_end_date':'2027-01-31','required_md':'5','lead_consultant_id':consultant['user']['id']})
+        assert card.status_code==201,card.text
+        assert card.json()['project_name']==onboarding.json()['project_name'] and card.json()['scope']=='Onboarding specific certification readiness scope'
+        milestones=client.get(f"/api/job-cards/{card.json()['id']}/milestones",headers=ah)
+        assert milestones.status_code==200,milestones.text
+        by_code={row['code']:row for row in milestones.json()}
+        assert set(by_code)=={'M1','M2','M3'}
+        assert [by_code[code]['planned_mandays'] for code in ('M1','M2','M3')]==['2.00','6.00','6.00']
+        assert by_code['M1']['amount'] is None and by_code['M1']['payment_status'] is None
+        milestone=by_code['M1']
+        activity_type=client.get('/api/activity-types',headers=ch).json()[0]
+        activity={'milestone_id':milestone['id'],'activity_type_id':activity_type['id'],'name':'Start M1 assessment','description':'Must remain payment gated until M1 receipt.'}
+        assert client.post(f"/api/job-cards/{card.json()['id']}/activities",headers=ch,json=activity).status_code==423
+        premature_m2=client.post(f"/api/job-cards/{card.json()['id']}/payments",headers=fh,json={'description':'Premature M2 payment','amount_due':'250','milestone_id':by_code['M2']['id']})
+        assert premature_m2.status_code==409
+        m1_invoice=client.post(f"/api/job-cards/{card.json()['id']}/payments",headers=fh,json={'description':'M1 milestone payment','amount_due':'250','milestone_id':milestone['id']})
+        assert m1_invoice.status_code==201,m1_invoice.text
+        paid=client.post(f"/api/payments/{m1_invoice.json()['id']}/confirm",headers=fh,json={'amount':'250','external_reference':'ONBOARD-M1-001'})
+        assert paid.status_code==200 and paid.json()['status']=='PAID'
+        created_activity=client.post(f"/api/job-cards/{card.json()['id']}/activities",headers=ch,json=activity)
+        assert created_activity.status_code==201
+        activity_file=client.post(f"/api/activities/{created_activity.json()['id']}/attachments",headers=ch,json={'file_name':'case-study.pdf','mime_type':'application/pdf','content_base64':'JVBERi0xLjQKJXRlc3QK'})
+        assert activity_file.status_code==201
+        linked_doc=client.post(f"/api/records/MILESTONE/{milestone['id']}/documents",headers=ch,json={'document_type':'M1 Case Study','file_name':'m1-case-study.pdf','mime_type':'application/pdf','content_base64':'JVBERi0xLjQKJXRlc3QK','remarks':'Consultant case study evidence'})
+        assert linked_doc.status_code==201 and linked_doc.json()['status']=='SUBMITTED'
+        admin_doc_queue=client.get('/api/record-documents/review-queue',headers=ah)
+        assert admin_doc_queue.status_code==200 and any(item['id']==linked_doc.json()['id'] and item['job_card_number']==card.json()['number'] and item['milestone_code']=='M1' for item in admin_doc_queue.json()['items'])
+        workspace=client.get(f"/api/job-cards/{card.json()['id']}/workspace",headers=ah)
+        assert workspace.status_code==200 and any(file['id']==activity_file.json()['id'] for row in workspace.json()['activities'] for file in row['attachments'])
+        reviewed_doc=client.post(f"/api/record-documents/{linked_doc.json()['id']}/review",headers=ah,json={'decision':'APPROVED','comment':'M1 evidence reviewed.'})
+        assert reviewed_doc.status_code==200 and reviewed_doc.json()['status']=='APPROVED'
+        finance_cards=client.get('/api/finance/job-cards',headers=fh)
+        assert finance_cards.status_code==200
+        finance_card=next(row for row in finance_cards.json() if row['id']==card.json()['id'])
+        assert 'initial_payment_paid' not in finance_card
+        assert client.post(f"/api/enquiries/{enquiry.json()['id']}/link-job-card",headers=ah,json={'job_card_id':card.json()['id']}).status_code==409
+        assert client.get(f"/api/job-cards/{card.json()['id']}/payments",headers=ah).status_code==403
+        assert client.get('/api/reports/payments',headers=ah).status_code==403

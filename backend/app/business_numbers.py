@@ -6,7 +6,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 from .models import BusinessSequence
 
-PREFIXES={"ticket":"DMTKT","enquiry":"DMENQ","job_card":"DMJC","invoice":"INV","certificate":"CERT","action":"ACT"}
+PREFIXES={"ticket":"DMTKT","enquiry":"DMENQ","job_card":"DMJC","project":"DMPRJ","msme":"DMMSME","invoice":"INV","certificate":"CERT","action":"ACT"}
 
 def next_business_number(db:Session,kind:str,today:date|None=None)->str:
     prefix=PREFIXES.get(kind)

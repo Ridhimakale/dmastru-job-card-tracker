@@ -3,5 +3,6 @@ uvicorn[standard]
 sqlalchemy
 alembic
 argon2-cffi
+cryptography
 PyJWT
 psycopg[binary]

@@ -21,13 +21,21 @@ Consultants who have not yet received an account can select **Create an End User
 
 1. An Admin creates the MSME/unit and Job Card, then assigns the consultant, Unit Representative, and Director.
 2. The Admin defines the Job Card requirement and milestones.
-3. The assigned consultant records visits, including date, duration, work details, rating, and remarks.
-4. The consultant uploads required supporting documents.
-5. Documents and workflow records are reviewed by the authorised team.
-6. The Unit Representative records the unit-level decision.
-7. The Director records the final decision. A final approval completes and locks the Job Card.
+3. After M1 payment is confirmed, Admin assigns the consultant and any required subject expert, using planner bookings for the milestone period to review availability.
+4. The assigned consultant schedules each visit in My Planner. A consultant can have one planned visit per day; a booked day is unavailable for another visit.
+5. The consultant submits visit details and evidence against that planned visit. Job Card visit reports must be linked to a planner visit; there is no independent manual visit entry.
+6. The consultant creates or uploads required supporting documents against the Job Card or visit.
+7. Documents and workflow records are reviewed by the authorised team.
+8. The Unit Representative records the unit-level decision.
+9. The Director records the final decision. A final approval completes and locks the Job Card.
 
 The system calculates mandays from actual visit duration. With the standard eight-hour manday, six hours and thirty minutes equals **0.8125 manday**.
+
+### ZED Bronze certification (ZED only)
+
+For an enquiry that includes **ZED Bronze**, Admin completes onboarding and then uses the **ZED Bronze certification** queue in **Admin Workspace → Job Cards & Onboarding**. Upload the Bronze certificate/report, record the certificate number if available, confirm certification, and record whether the client is interested in ZED Silver or Gold. Bronze is free, so no payment confirmation or Job Card is required; certification is complete when Admin confirms the report.
+
+If the client is interested in Silver or Gold, the portal refers the case to Marketing. Marketing records the plan while the client is considering the upgrade. Interest alone does not create a Job Card. After the client explicitly accepts one paid level, Marketing records that decision and the onboarding converts to ZED Silver or Gold. Admin can then create the standard paid ZED Job Card; Finance confirms M1 payment before work proceeds. LEAN, ISO, Training, and other existing processes are unchanged.
 
 ## Navigation by role
 
@@ -65,7 +73,7 @@ Consultants see only the Job Cards assigned to them.
 | Menu | What it is used for |
 | --- | --- |
 | My Dashboard | View assigned-work KPIs and current Job Cards. |
-| My Job Cards | Open an assigned Job Card to view milestones, visits, documents, and approval history. This is also where visits and documents are added. |
+| My Job Cards | Open an assigned Job Card to view milestones, planned visits, visit reports, documents, and approval history. Submit or correct a report from its planned visit. |
 | Visits | Review visit records across assigned Job Cards, including status and any rejection reason. |
 | Documents | Review uploaded documents, versions, statuses, and reviewer remarks. |
 | Activity | View personal activity history. |
@@ -90,7 +98,11 @@ Consultants see only the Job Cards assigned to them.
 
 ### Job Cards and milestones
 
-A Job Card identifies the MSME/unit, location, project period, required mandays, and assigned people. Milestones provide a structured plan for the work, including planned visits and progress. The system presents completed and remaining mandays so the team can identify workload, delays, and overruns.
+A Job Card identifies the MSME/unit, location, project period, required mandays, and assigned people. After M1 client payment to QCI is confirmed, Admin assigns milestone consultants and any required subject expert. Admin sees each consultant's planned bookings during the milestone period, or the Job Card period if milestone dates are unset. ZED Silver and Gold keep a fixed 14 mandays: M1 is 2, M2 is 6, and M3 is 6. Bronze does not use a Job Card.
+
+For ZED Silver M1, consultants submit the planned visit report, then use **My Activities** to complete that visit's checklist. Visit 1 covers parameters 1–14 allocation, site photos, opening meeting, basic information in the app, a 20-photo site tour, ZED awareness training, and the baseline diagnostic/gap assessment. Visit 2 covers the parameters 1–14 handholding plan, technology recommendations, implementation-plan training, closing meeting, and final web-module submission. Each item is marked Yes, No, or In Process; In Process requires an expected completion date. Consultants can attach evidence or create a Google Doc, and open the active Admin reference file for that item. Admin manages those reference files under **Settings → ZED Silver M1 reference documents**. Existing activity evidence review applies.
+
+Consultants schedule visits in My Planner. The planner blocks a second visit for any member of the same consultant team on a date that is already booked. Visit reports, findings, and required evidence are submitted against their planned visit; standalone manual visit entry is not part of the Consultant Job Card workflow. Milestones provide a structured plan for the work and progress. The system presents completed and remaining mandays so the team can identify workload, delays, and overruns.
 
 ### Visit recording
 
