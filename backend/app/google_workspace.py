@@ -1,6 +1,7 @@
 """Small Google OAuth and Drive API client for Docs/Sheets work products."""
 import json
 import os
+import secrets
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -136,6 +137,43 @@ def create_file(access: str, name: str, kind: str) -> dict:
         return json.loads(raw)
     except ValueError:
         raise HTTPException(502, "Google created a file but returned an invalid response.") from None
+
+
+def create_doc_from_upload(access: str, name: str, content: bytes, mime_type: str) -> dict:
+    """Import an uploaded Office document as an editable Google Doc."""
+    boundary = "codex_" + secrets.token_hex(16)
+    metadata = json.dumps({"name": name, "mimeType": "application/vnd.google-apps.document"}).encode()
+    body = (
+        b"--" + boundary.encode() + b"\r\n"
+        + b"Content-Type: application/json; charset=UTF-8\r\n\r\n" + metadata + b"\r\n"
+        + b"--" + boundary.encode() + b"\r\n"
+        + f"Content-Type: {mime_type}\r\n\r\n".encode() + content + b"\r\n"
+        + b"--" + boundary.encode() + b"--"
+    )
+    raw, _ = _request(
+        "https://www.googleapis.com/upload/drive/v3/files?" + urlencode({"uploadType": "multipart", "fields": "id,name,mimeType,webViewLink"}),
+        method="POST",
+        data=body,
+        headers={"Authorization": f"Bearer {access}", "Content-Type": f"multipart/related; boundary={boundary}"},
+    )
+    try:
+        return json.loads(raw)
+    except ValueError:
+        raise HTTPException(502, "Google imported the reference but returned an invalid response.") from None
+
+
+def copy_file(access: str, file_id: str, name: str) -> dict:
+    body = json.dumps({"name": name}).encode()
+    raw, _ = _request(
+        f"{DRIVE_API}/files/{file_id}/copy?" + urlencode({"fields": "id,name,mimeType,webViewLink"}),
+        method="POST",
+        data=body,
+        headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+    )
+    try:
+        return json.loads(raw)
+    except ValueError:
+        raise HTTPException(502, "Google copied the draft but returned an invalid response.") from None
 
 
 def export_file(access: str, file_id: str, kind: str) -> tuple[bytes, str]:

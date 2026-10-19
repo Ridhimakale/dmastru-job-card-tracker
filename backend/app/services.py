@@ -101,7 +101,7 @@ def milestone_actual_minutes(db:Session,milestone:Milestone,card:JobCard|None=No
     planner_minutes=planner_actual_minutes(db,card,milestone_id=milestone.id) if card else 0
     return visit_minutes+activity_minutes+planner_minutes
 def milestone_summary(db:Session, milestone:Milestone):
-    recorded=int(db.scalar(select(func.count(Visit.id)).where(Visit.milestone_id==milestone.id,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None))) or 0)
+    recorded=int(db.scalar(select(func.count(Visit.id)).outerjoin(PlannedVisit,PlannedVisit.id==Visit.planned_visit_id).where(Visit.milestone_id==milestone.id,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None),or_(Visit.planned_visit_id.is_(None),PlannedVisit.status=="COMPLETED"))) or 0)
     planned=int(db.scalar(select(func.count(PlannedVisit.id)).where(PlannedVisit.milestone_id==milestone.id,PlannedVisit.status=="COMPLETED",~_planner_visit_is_reported())) or 0)
     actual=recorded+planned
     progress=(Decimal(actual)*100/Decimal(milestone.planned_visits)).quantize(Decimal(".01")) if milestone.planned_visits else Decimal(0)

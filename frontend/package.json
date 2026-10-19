@@ -13,6 +13,7 @@
     "@univerjs/preset-sheets-core": "1.1.0",
     "@univerjs/presets": "1.1.0",
     "@vitejs/plugin-react": "latest",
+    "countrycitystatejson": "^26.9.2802",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",

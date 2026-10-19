@@ -212,7 +212,7 @@ class JobActivityCreate(BaseModel):
 class JobActivityUpdate(BaseModel):
     status:str|None=Field(default=None,pattern="^(PLANNED|IN_PROGRESS|COMPLETED|CANCELLED)$");remarks:str|None=Field(default=None,max_length=10000);duration_minutes:int|None=Field(default=None,ge=0,le=100000);start_date:date|None=None;end_date:date|None=None;expected_completion_date:date|None=None
 class JobActivityOut(BaseModel):
-    id:int;job_card_id:int;milestone_id:int;visit_id:int|None;visit_number:int|None=None;planned_visit_id:int|None=None;activity_type_id:int;activity_type_code:str;activity_type_name:str;name:str;description:str;assigned_user_id:int;assigned_user_name:str;start_date:date|None;end_date:date|None;expected_completion_date:date|None=None;sla_due_at:datetime|None=None;duration_minutes:int;mandays:Decimal;status:str;review_status:str="NOT_SUBMITTED";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None;remarks:str|None;created_by:int;created_at:datetime
+    id:int;job_card_id:int;milestone_id:int;visit_id:int|None;visit_number:int|None=None;planned_visit_id:int|None=None;activity_type_id:int;activity_type_code:str;activity_type_name:str;name:str;description:str;assigned_user_id:int;assigned_user_name:str;start_date:date|None;end_date:date|None;expected_completion_date:date|None=None;sla_due_at:datetime|None=None;duration_minutes:int;mandays:Decimal;status:str;review_status:str="NOT_SUBMITTED";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None;remarks:str|None;created_by:int;created_at:datetime;reference_documents:list[dict]=Field(default_factory=list)
 class JobActivityAttachmentOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
     id:int;activity_id:int;file_name:str;file_size:int;mime_type:str;uploaded_by:int;uploaded_at:datetime;status:str="DRAFT";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None
@@ -249,7 +249,7 @@ class DocumentOut(BaseModel):
 class RecordDocumentUpload(BaseModel): document_type:str=Field(min_length=2,max_length=80);file_name:str=Field(min_length=1,max_length=255);mime_type:str;content_base64:str;remarks:str|None=Field(default=None,max_length=10000);status:str=Field(default="SUBMITTED",pattern="^(DRAFT|SUBMITTED)$")
 class RecordDocumentOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
-    id:int;owner_job_card_id:int|None=None;ticket_id:UUID|None=None;enquiry_id:UUID|None=None;job_card_id:int|None=None;milestone_id:int|None=None;action_id:UUID|None=None;visit_id:int|None=None;payment_id:int|None=None;milestone_review_id:int|None=None;visit_review_id:int|None=None;approval_id:int|None=None
+    id:int;owner_job_card_id:int|None=None;ticket_id:UUID|None=None;enquiry_id:UUID|None=None;job_card_id:int|None=None;milestone_id:int|None=None;action_id:UUID|None=None;visit_id:int|None=None;payment_id:int|None=None;milestone_review_id:int|None=None;visit_review_id:int|None=None;approval_id:int|None=None;activity_id:int|None=None
     document_type:str;file_name:str;file_size:int;mime_type:str;version:int;status:str;remarks:str|None=None;uploaded_by:int;uploaded_at:datetime;reviewed_by:int|None=None;reviewed_at:datetime|None=None;editor_provider:str|None=None;google_file_id:str|None=None;google_file_url:str|None=None
 class RecordDocumentReview(BaseModel): decision:str=Field(pattern="^(UNDER_REVIEW|APPROVED|RETURNED|REJECTED)$");comment:str=Field(min_length=3,max_length=5000)
 class ConsultantVisitReportIn(BaseModel):
@@ -269,6 +269,10 @@ class WorkProductDraftIn(BaseModel):
 class GoogleWorkProductCreate(BaseModel):
     kind:str=Field(pattern="^(DOCUMENT|SHEET)$")
     title:str=Field(min_length=2,max_length=120)
+    activity_id:int|None=None
+class GoogleReferenceWorkProductCreate(BaseModel):
+    title:str=Field(min_length=2,max_length=120)
+    reference_document_id:int
 class DocumentReview(BaseModel): decision:str=Field(pattern="^(APPROVED|RETURNED|REJECTED)$"); comment:str=Field(min_length=3,max_length=5000)
 class ApprovalAction(BaseModel): decision:str=Field(pattern="^(APPROVED|REJECTED)$"); comment:str|None=Field(default=None,max_length=5000)
 class ApprovalOut(BaseModel):
@@ -360,6 +364,7 @@ class ZedExpansionPlan(BaseModel):
     client_accepted:bool=False
 class EnquiryOnboardingOut(BaseModel):
     id:int;enquiry_id:UUID;enquiry_number:str;company_name:str;contact_person:str|None=None;email:str|None=None;phone:str|None=None;industry:str|None=None;enquiry_for:list[str]|None=None;zed_id:str|None=None;msme_id:int;msme_code:str;service_name:str;project_name:str;scope:str;location:str;package_code:str|None=None;planned_mandays:Decimal|None=None;project_timeline_start:date|None=None;project_timeline_end:date|None=None;commercial_amount:Decimal|None=None;initial_payment_amount:Decimal;status:str;payment:PaymentOut|None=None
+    management_approval_status:str="PENDING"
     zed_bronze_certification_status:str="NOT_REQUIRED";zed_bronze_certificate_number:str|None=None;zed_bronze_report_document_id:int|None=None;zed_bronze_confirmed_at:datetime|None=None;zed_silver_gold_interest:str|None=None;zed_marketing_plan_status:str="NOT_REQUIRED";zed_marketing_plan_services:str|None=None;zed_marketing_plan_notes:str|None=None;zed_marketing_plan_due_date:date|None=None
 class PaymentReceiptOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
@@ -466,7 +471,7 @@ class RecordFileOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
     id:int;file_name:str;file_size:int;mime_type:str;uploaded_by:int;uploaded_at:datetime
 class TicketAttachmentOut(RecordFileOut): ticket_id:UUID
-class EnquiryDocumentOut(RecordFileOut): enquiry_id:UUID;document_type:str;remarks:str|None=None
+class EnquiryDocumentOut(RecordFileOut): enquiry_id:UUID;document_type:str;remarks:str|None=None;google_file_id:str|None=None;google_file_url:str|None=None;google_synced_at:datetime|None=None
 class TicketRelationshipCreate(BaseModel):
     related_type:str=Field(pattern="^(TICKET|ENQUIRY|JOB_CARD)$")
     related_id:str=Field(min_length=1,max_length=64)
@@ -1310,22 +1315,22 @@ def admin_onboarding_enquiries(db:DB,user:Annotated[User,Depends(require(Role.AD
         meeting_at=row.client_meeting_at
         if meeting_at and meeting_at.tzinfo is None: meeting_at=meeting_at.replace(tzinfo=ZoneInfo(os.getenv("APP_TIMEZONE","Asia/Kolkata")))
         evidence=[]
-        for doc in db.scalars(select(EnquiryDocument).where(EnquiryDocument.enquiry_id==row.id,EnquiryDocument.document_type=="CLIENT_BRIEFING_EVIDENCE").order_by(EnquiryDocument.uploaded_at.desc())):
-            uploaded_at=doc.uploaded_at
-            if uploaded_at.tzinfo is None: uploaded_at=uploaded_at.replace(tzinfo=timezone.utc)
-            evidence.append({"id":doc.id,"file_name":doc.file_name,"file_size":doc.file_size,"uploaded_at":doc.uploaded_at,"valid_for_current_meeting":bool(meeting_at and uploaded_at>=meeting_at)})
+        for doc in db.scalars(select(EnquiryDocument).where(EnquiryDocument.enquiry_id==row.id,EnquiryDocument.document_type.in_(("CLIENT_BRIEFING_EVIDENCE","CLIENT_BRIEFING_GOOGLE_DRAFT"))).order_by(EnquiryDocument.uploaded_at.desc())):
+            evidence_at=doc.google_synced_at if doc.google_file_id else doc.uploaded_at
+            if evidence_at and evidence_at.tzinfo is None: evidence_at=evidence_at.replace(tzinfo=timezone.utc)
+            evidence.append({"id":doc.id,"file_name":doc.file_name,"file_size":doc.file_size,"uploaded_at":doc.uploaded_at,"valid_for_current_meeting":bool(meeting_at and evidence_at and evidence_at>=meeting_at),"google_file_url":doc.google_file_url,"google_synced_at":doc.google_synced_at})
         followups=list(db.scalars(select(EnquiryFollowUp).where(EnquiryFollowUp.enquiry_id==row.id,EnquiryFollowUp.follow_up_type=="CLIENT_DISCUSSION").order_by(EnquiryFollowUp.created_at.desc()).limit(20)))
-        items.append({"id":str(row.id),"number":row.number,"company_name":row.company_name,"status":row.status,"contact_person":row.contact_person,"email":row.email,"phone":row.phone,"industry":row.industry,"location":row.location,"requirement":row.requirement,"expected_scope":row.expected_scope,"enquiry_for":row.enquiry_for,"package_code":row.package_code,"zed_id":row.zed_id,"zed_pass_set":row.zed_pass_set,"feedback":row.feedback,"deadline_date":row.deadline_date,"source":row.source,"referral_consultant_id":row.referral_consultant_id,"client_meeting_type":row.client_meeting_type,"client_meeting_at":row.client_meeting_at,"client_meeting_completed_at":row.client_meeting_completed_at,"client_briefing_service_name":row.client_briefing_service_name,"client_briefing_package_code":row.client_briefing_package_code,"client_briefing_planned_mandays":row.client_briefing_planned_mandays,"client_briefing_timeline_start":row.client_briefing_timeline_start,"client_briefing_timeline_end":row.client_briefing_timeline_end,"client_briefing_scope":row.client_briefing_scope,"client_confirmation_status":row.client_confirmation_status,"client_confirmation_note":row.client_confirmation_note,"client_confirmation_recorded_at":row.client_confirmation_recorded_at,"client_briefing_evidence":evidence,"client_briefing_followups":[{"id":f.id,"follow_up_date":f.follow_up_date,"follow_up_type":f.follow_up_type,"notes":f.notes,"next_follow_up_date":f.next_follow_up_date,"next_follow_up_type":f.next_follow_up_type,"status":f.status} for f in followups],"updated_at":row.updated_at})
+        items.append({"id":str(row.id),"number":row.number,"company_name":row.company_name,"status":row.status,"management_approval_status":row.management_approval_status,"contact_person":row.contact_person,"email":row.email,"phone":row.phone,"industry":row.industry,"location":row.location,"requirement":row.requirement,"expected_scope":row.expected_scope,"enquiry_for":row.enquiry_for,"package_code":row.package_code,"zed_id":row.zed_id,"zed_pass_set":row.zed_pass_set,"feedback":row.feedback,"deadline_date":row.deadline_date,"source":row.source,"referral_consultant_id":row.referral_consultant_id,"client_meeting_type":row.client_meeting_type,"client_meeting_at":row.client_meeting_at,"client_meeting_completed_at":row.client_meeting_completed_at,"client_briefing_service_name":row.client_briefing_service_name,"client_briefing_package_code":row.client_briefing_package_code,"client_briefing_planned_mandays":row.client_briefing_planned_mandays,"client_briefing_timeline_start":row.client_briefing_timeline_start,"client_briefing_timeline_end":row.client_briefing_timeline_end,"client_briefing_scope":row.client_briefing_scope,"client_confirmation_status":row.client_confirmation_status,"client_confirmation_note":row.client_confirmation_note,"client_confirmation_recorded_at":row.client_confirmation_recorded_at,"client_briefing_evidence":evidence,"client_briefing_followups":[{"id":f.id,"follow_up_date":f.follow_up_date,"follow_up_type":f.follow_up_type,"notes":f.notes,"next_follow_up_date":f.next_follow_up_date,"next_follow_up_type":f.next_follow_up_type,"status":f.status} for f in followups],"updated_at":row.updated_at})
     return {"items":items,"total":total,"page":page,"page_size":page_size}
 
 def _has_current_client_briefing_evidence(db:Session,enquiry:Enquiry)->bool:
     if not enquiry.client_meeting_at: return False
     meeting_at=enquiry.client_meeting_at
     if meeting_at.tzinfo is None: meeting_at=meeting_at.replace(tzinfo=ZoneInfo(os.getenv("APP_TIMEZONE","Asia/Kolkata")))
-    for doc in db.scalars(select(EnquiryDocument).where(EnquiryDocument.enquiry_id==enquiry.id,EnquiryDocument.document_type=="CLIENT_BRIEFING_EVIDENCE")):
-        uploaded_at=doc.uploaded_at
-        if uploaded_at.tzinfo is None: uploaded_at=uploaded_at.replace(tzinfo=timezone.utc)
-        if uploaded_at>=meeting_at: return True
+    for doc in db.scalars(select(EnquiryDocument).where(EnquiryDocument.enquiry_id==enquiry.id,EnquiryDocument.document_type.in_(("CLIENT_BRIEFING_EVIDENCE","CLIENT_BRIEFING_GOOGLE_DRAFT")))):
+        evidence_at=doc.google_synced_at if doc.google_file_id else doc.uploaded_at
+        if evidence_at and evidence_at.tzinfo is None: evidence_at=evidence_at.replace(tzinfo=timezone.utc)
+        if evidence_at and evidence_at>=meeting_at: return True
     return False
 
 @app.get("/api/management/enquiry-approvals")
@@ -1364,7 +1369,7 @@ def decide_enquiry_management_approval(enquiry_id:UUID,data:EnquiryApprovalDecis
 def _enquiry_onboarding_out(db:Session,item:EnquiryOnboarding):
     enquiry=db.get(Enquiry,item.enquiry_id);msme=db.get(MSME,item.msme_id)
     payment=db.scalar(select(Payment).where(Payment.enquiry_id==item.enquiry_id,Payment.job_card_id.is_(None),Payment.milestone_id.is_(None)).order_by(Payment.id.desc()))
-    return EnquiryOnboardingOut(id=item.id,enquiry_id=item.enquiry_id,enquiry_number=enquiry.number,company_name=enquiry.company_name,contact_person=enquiry.contact_person,email=enquiry.email,phone=enquiry.phone,industry=enquiry.industry,enquiry_for=enquiry.enquiry_for,zed_id=enquiry.zed_id,msme_id=msme.id,msme_code=msme.msme_code,service_name=item.service_name,project_name=item.project_name,scope=item.scope,location=item.location,package_code=item.package_code,planned_mandays=item.planned_mandays,project_timeline_start=item.project_timeline_start,project_timeline_end=item.project_timeline_end,commercial_amount=item.commercial_amount,initial_payment_amount=item.initial_payment_amount,status=item.status,payment=PaymentOut.model_validate(payment) if payment else None,zed_bronze_certification_status=item.zed_bronze_certification_status,zed_bronze_certificate_number=item.zed_bronze_certificate_number,zed_bronze_report_document_id=item.zed_bronze_report_document_id,zed_bronze_confirmed_at=item.zed_bronze_confirmed_at,zed_silver_gold_interest=item.zed_silver_gold_interest,zed_marketing_plan_status=item.zed_marketing_plan_status,zed_marketing_plan_services=item.zed_marketing_plan_services,zed_marketing_plan_notes=item.zed_marketing_plan_notes,zed_marketing_plan_due_date=item.zed_marketing_plan_due_date)
+    return EnquiryOnboardingOut(id=item.id,enquiry_id=item.enquiry_id,enquiry_number=enquiry.number,company_name=enquiry.company_name,contact_person=enquiry.contact_person,email=enquiry.email,phone=enquiry.phone,industry=enquiry.industry,enquiry_for=enquiry.enquiry_for,zed_id=enquiry.zed_id,msme_id=msme.id,msme_code=msme.msme_code,service_name=item.service_name,project_name=item.project_name,scope=item.scope,location=item.location,package_code=item.package_code,planned_mandays=item.planned_mandays,project_timeline_start=item.project_timeline_start,project_timeline_end=item.project_timeline_end,commercial_amount=item.commercial_amount,initial_payment_amount=item.initial_payment_amount,status=item.status,management_approval_status=enquiry.management_approval_status,payment=PaymentOut.model_validate(payment) if payment else None,zed_bronze_certification_status=item.zed_bronze_certification_status,zed_bronze_certificate_number=item.zed_bronze_certificate_number,zed_bronze_report_document_id=item.zed_bronze_report_document_id,zed_bronze_confirmed_at=item.zed_bronze_confirmed_at,zed_silver_gold_interest=item.zed_silver_gold_interest,zed_marketing_plan_status=item.zed_marketing_plan_status,zed_marketing_plan_services=item.zed_marketing_plan_services,zed_marketing_plan_notes=item.zed_marketing_plan_notes,zed_marketing_plan_due_date=item.zed_marketing_plan_due_date)
 
 @app.put("/api/admin/enquiries/{enquiry_id}/client-briefing")
 def schedule_enquiry_client_briefing(enquiry_id:UUID,data:EnquiryClientBriefingSchedule,db:DB,admin:Annotated[User,Depends(require(Role.ADMIN))]):
@@ -1569,6 +1574,62 @@ def upload_enquiry_document(enquiry_id:UUID,data:RecordFileUpload,db:DB,user:Ann
     row=EnquiryDocument(enquiry_id=enquiry_id,file_name=data.file_name,storage_key=key,file_size=size,mime_type=data.mime_type,document_type=data.document_type,remarks=data.remarks,uploaded_by=user.id)
     db.add(row);db.flush();audit(db,user.id,"ENQUIRY_DOCUMENT_UPLOADED","ENQUIRY",None,f"{enquiry.number}: {data.document_type} {data.file_name}",entity_ref=str(enquiry.id));db.commit();db.refresh(row);return row
 
+@app.post("/api/enquiries/{enquiry_id}/google-work-products",response_model=EnquiryDocumentOut,status_code=201)
+def create_enquiry_google_work_product(enquiry_id:UUID,data:GoogleWorkProductCreate,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
+    enquiry=db.get(Enquiry,enquiry_id)
+    if not enquiry or enquiry.status!="CONVERTED" or enquiry.management_approval_status!="APPROVED": raise HTTPException(404,"Approved enquiry not found.")
+    meeting_at=enquiry.client_meeting_at
+    if enquiry.client_confirmation_status!="SCHEDULED" or not meeting_at: raise HTTPException(409,"Schedule a client discussion before creating its evidence document.")
+    if meeting_at.tzinfo is None: meeting_at=meeting_at.replace(tzinfo=ZoneInfo(os.getenv("APP_TIMEZONE","Asia/Kolkata")))
+    if meeting_at>datetime.now(timezone.utc): raise HTTPException(409,"Create the discussion document after the scheduled meeting has taken place.")
+    access=_google_access_for_user(db,user.id)
+    title=data.title.strip()
+    created=google_workspace.create_file(access,title,data.kind)
+    file_id=str(created.get("id", ""));url=str(created.get("webViewLink", ""))
+    if not file_id or not url: raise HTTPException(502,"Google created the file but did not return its editor link.")
+    filename,mime,content,_=_work_product_file(WorkProductDraftIn(kind=data.kind,title=title))
+    key=save_file(filename,mime,content)
+    row=EnquiryDocument(enquiry_id=enquiry_id,file_name=filename,storage_key=key,file_size=len(content),mime_type=mime,document_type="CLIENT_BRIEFING_GOOGLE_DRAFT",remarks="Google document. Sync its latest version here after adding the discussion record.",uploaded_by=user.id,google_file_id=file_id,google_file_url=url)
+    db.add(row);db.flush();audit(db,user.id,"ENQUIRY_GOOGLE_WORK_PRODUCT_CREATED","ENQUIRY",None,f"{enquiry.number}: {title}; Google file {file_id}",entity_ref=str(enquiry.id));db.commit();db.refresh(row);return row
+
+@app.post("/api/enquiry-documents/{document_id}/sync-google",response_model=EnquiryDocumentOut)
+def sync_enquiry_google_work_product(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
+    row=db.get(EnquiryDocument,document_id)
+    if not row or not row.google_file_id: raise HTTPException(404,"Google discussion document not found.")
+    enquiry=db.get(Enquiry,row.enquiry_id)
+    if not enquiry or not _visible_enquiry(enquiry,user): raise HTTPException(404,"Google discussion document not found.")
+    meeting_at=enquiry.client_meeting_at
+    if not meeting_at: raise HTTPException(409,"Schedule the client discussion first.")
+    if meeting_at.tzinfo is None: meeting_at=meeting_at.replace(tzinfo=ZoneInfo(os.getenv("APP_TIMEZONE","Asia/Kolkata")))
+    if meeting_at>datetime.now(timezone.utc): raise HTTPException(409,"Sync discussion evidence after the scheduled meeting.")
+    kind="SHEET" if row.file_name.lower().endswith(".xlsx") else "DOCUMENT"
+    content,mime=google_workspace.export_file(_google_access_for_user(db,user.id),row.google_file_id,kind)
+    if len(content)>MAX_BYTES: raise HTTPException(413,"Each file must be smaller than 1 GB.")
+    extension=".xlsx" if kind=="SHEET" else ".docx"
+    filename=re.sub(r"[^A-Za-z0-9._ -]","",row.file_name.rsplit(".",1)[0]).strip()[:100] or "Discussion"
+    filename+=extension
+    try: key=save_file(filename,mime,content)
+    except ValueError as exc: raise HTTPException(422,f"Google export could not be saved to the portal: {exc}") from None
+    old_key=row.storage_key;row.storage_key=key;row.file_name=filename;row.file_size=len(content);row.mime_type=mime;row.document_type="CLIENT_BRIEFING_EVIDENCE";row.google_synced_at=datetime.now(timezone.utc)
+    audit(db,user.id,"ENQUIRY_GOOGLE_WORK_PRODUCT_SYNCED","ENQUIRY",None,f"{enquiry.number}: Google file {row.google_file_id}",entity_ref=str(enquiry.id));db.commit();db.refresh(row)
+    try: (STORAGE_ROOT/old_key).unlink(missing_ok=True)
+    except OSError: pass
+    return row
+
+@app.delete("/api/enquiry-documents/{document_id}",status_code=204)
+def delete_enquiry_google_work_product(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
+    row=db.get(EnquiryDocument,document_id)
+    if not row or not row.google_file_id: raise HTTPException(404,"Google discussion document not found.")
+    enquiry=db.get(Enquiry,row.enquiry_id)
+    if not enquiry or not _visible_enquiry(enquiry,user): raise HTTPException(404,"Google discussion document not found.")
+    google_workspace.delete_file(_google_access_for_user(db,user.id),row.google_file_id)
+    storage_path=STORAGE_ROOT/row.storage_key
+    audit(db,user.id,"ENQUIRY_GOOGLE_WORK_PRODUCT_DELETED","ENQUIRY",None,f"{enquiry.number}: Google file {row.google_file_id}",entity_ref=str(enquiry.id))
+    db.delete(row);db.commit()
+    try: storage_path.unlink(missing_ok=True)
+    except OSError: pass
+    return Response(status_code=204)
+
 @app.get("/api/enquiry-documents/{document_id}/download")
 def download_enquiry_document(document_id:int,db:DB,user:Annotated[User,Depends(current_user)]):
     row=db.get(EnquiryDocument,document_id)
@@ -1755,10 +1816,21 @@ async def _planned_visit_sla_monitor():
                 if not card or card.deleted_at: continue
                 milestone=db.get(Milestone,activity.milestone_id)
                 message=f"{milestone.code if milestone else 'Milestone'} visit task SLA breached: {activity.name} for {card.number} was due within 24 hours of the submitted visit report."
-                notify_once(db,activity.assigned_user_id,message,f"/user/activities?job_card={card.id}",f"visit-task-sla-consultant-{activity.id}")
+                notify_once(db,activity.assigned_user_id,message,f"/user/job-cards?card={card.id}",f"visit-task-sla-consultant-{activity.id}")
                 for recipient in admin_users+management_users:
                     notify_once(db,recipient.id,message,f"/job-cards/{card.id}",f"visit-task-sla-review-{activity.id}-{recipient.id}")
-            if overdue_visit_tasks: db.commit()
+            overdue_evidence=db.execute(select(JobActivityAttachment,JobActivity).join(JobActivity,JobActivity.id==JobActivityAttachment.activity_id).where(JobActivityAttachment.status.in_(("SUBMITTED","UNDER_REVIEW")),JobActivity.status=="COMPLETED",JobActivity.updated_at<=now-timedelta(hours=24))).all()
+            for attachment,activity in overdue_evidence:
+                card=db.get(JobCard,activity.job_card_id)
+                if not activity or not card or card.deleted_at:continue
+                for recipient in admin_users:
+                    notify_once(db,recipient.id,f"Activity evidence approval is overdue: {attachment.file_name} for {activity.name} on Job Card {card.number} has been awaiting review for over 24 hours.","/admin/documents",f"activity-evidence-review-sla-{attachment.id}-{recipient.id}")
+            overdue_visit_reports=db.scalars(select(RecordDocument).where(RecordDocument.visit_id.is_not(None),RecordDocument.document_type=="Consultant Visit Report",RecordDocument.status.in_(("SUBMITTED","UNDER_REVIEW")),RecordDocument.uploaded_at<=now-timedelta(hours=24))).all()
+            for document in overdue_visit_reports:
+                card=db.get(JobCard,document.owner_job_card_id) if document.owner_job_card_id else None
+                for recipient in admin_users:
+                    notify_once(db,recipient.id,f"Visit report approval is overdue: {document.file_name} for Job Card {card.number if card else document.owner_job_card_id} has been awaiting review for over 24 hours.",f"/admin/documents?document={document.id}",f"visit-report-review-sla-{document.id}-{recipient.id}")
+            if overdue_visit_tasks or overdue_evidence or overdue_visit_reports: db.commit()
         except Exception:
             db.rollback();logger.exception("Planned visit SLA monitor failed")
         finally:
@@ -2293,11 +2365,15 @@ def create_consultant_visit_report(planned_visit_id:int,data:ConsultantVisitRepo
     visit=db.scalar(select(Visit).where(Visit.planned_visit_id==planned.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))))
     if not visit: raise HTTPException(409,"Submit the visit report before creating the milestone report.")
     tasks=list(db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned.id)))
-    if not tasks or any(task.status!="COMPLETED" or not db.scalar(select(JobActivityAttachment.id).where(JobActivityAttachment.activity_id==task.id)) for task in tasks):
-        raise HTTPException(409,"Complete every required visit task and attach its evidence before submitting the report.")
+    if not tasks or not visit_deliverables_complete(db,milestone,planned.id):
+        raise HTTPException(409,"Every required visit activity and its evidence must be completed, submitted, and approved by Admin before submitting the visit report.")
     active=db.scalar(select(RecordDocument.id).where(RecordDocument.visit_id==visit.id,RecordDocument.document_type=="Consultant Visit Report",RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED"))).order_by(RecordDocument.version.desc()).limit(1))
     if active: raise HTTPException(409,"A report for this visit is already submitted or approved.")
-    rows=[{"Section":"Title","Details":data.title},{"Section":"Job Card","Details":card.number},{"Section":"Milestone","Details":f"{milestone.code} {milestone.name}"},{"Section":"Visit date","Details":str(visit.visit_date)},{"Section":"Consultant","Details":user.full_name},{"Section":"Summary","Details":data.summary},{"Section":"Findings","Details":data.findings},{"Section":"Actions and recommendations","Details":data.actions or "None"},{"Section":"Conclusion","Details":data.conclusion}]
+    evidence_rows=[]
+    for task in tasks:
+        attachment=db.scalar(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==task.id).order_by(JobActivityAttachment.id.desc()).limit(1))
+        evidence_rows.append(f"{task.name}: {attachment.file_name if attachment else 'evidence pending'}")
+    rows=[{"Section":"Title","Details":data.title},{"Section":"Job Card","Details":card.number},{"Section":"Milestone","Details":f"{milestone.code} {milestone.name}"},{"Section":"Visit date","Details":str(visit.visit_date)},{"Section":"Consultant","Details":user.full_name},{"Section":"Required activities and evidence","Details":"\n".join(evidence_rows)},{"Section":"Summary","Details":data.summary},{"Section":"Findings","Details":data.findings},{"Section":"Actions and recommendations","Details":data.actions or "None"},{"Section":"Conclusion","Details":data.conclusion}]
     if data.format=="xlsx":
         content=to_xlsx(rows);extension="xlsx";mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     else:
@@ -2317,7 +2393,7 @@ def create_consultant_visit_report(planned_visit_id:int,data:ConsultantVisitRepo
     document=RecordDocument(owner_job_card_id=card.id,visit_id=visit.id,document_type="Consultant Visit Report",file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=version,status="SUBMITTED",remarks="Submitted by consultant for Admin approval.",uploaded_by=user.id)
     db.add(document);db.flush();audit(db,user.id,"CONSULTANT_REPORT_SUBMITTED","DOCUMENT",document.id,f"{card.number}; {milestone.code}; planned visit {planned.id}")
     for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
-        notify(db,admin.id,f"Consultant visit report for {card.number} {milestone.code} is awaiting approval.",f"/admin/documents?document={document.id}")
+        notify(db,admin.id,f"Consultant visit report for {card.number} {milestone.code} is awaiting approval. Please review it within 24 hours.",f"/admin/documents?document={document.id}")
     db.commit();db.refresh(document);return document
 
 @app.get("/api/job-cards/{card_id}/record-documents",response_model=list[RecordDocumentOut])
@@ -2337,7 +2413,7 @@ def list_my_record_documents(db:DB,user:Annotated[User,Depends(require(Role.END_
 
 @app.get("/api/record-documents/review-queue")
 def record_document_review_queue(db:DB,user:Annotated[User,Depends(require(Role.ADMIN))],page:int=Query(default=1,ge=1),page_size:int=Query(default=25,ge=1,le=100)):
-    latest=(select(RecordDocument.id.label("id"),func.row_number().over(partition_by=(RecordDocument.owner_job_card_id,RecordDocument.document_type,RecordDocument.ticket_id,RecordDocument.enquiry_id,RecordDocument.job_card_id,RecordDocument.milestone_id,RecordDocument.action_id,RecordDocument.visit_id,RecordDocument.payment_id,RecordDocument.milestone_review_id,RecordDocument.visit_review_id,RecordDocument.approval_id),order_by=(RecordDocument.version.desc(),RecordDocument.id.desc())).label("rank")).where(RecordDocument.owner_job_card_id.is_not(None),RecordDocument.payment_id.is_(None),RecordDocument.deleted_at.is_(None)).subquery())
+    latest=(select(RecordDocument.id.label("id"),func.row_number().over(partition_by=(RecordDocument.owner_job_card_id,RecordDocument.document_type,RecordDocument.ticket_id,RecordDocument.enquiry_id,RecordDocument.job_card_id,RecordDocument.milestone_id,RecordDocument.action_id,RecordDocument.visit_id,RecordDocument.payment_id,RecordDocument.milestone_review_id,RecordDocument.visit_review_id,RecordDocument.approval_id,RecordDocument.activity_id),order_by=(RecordDocument.version.desc(),RecordDocument.id.desc())).label("rank")).where(RecordDocument.owner_job_card_id.is_not(None),RecordDocument.payment_id.is_(None),RecordDocument.deleted_at.is_(None),RecordDocument.status.in_(("SUBMITTED","UNDER_REVIEW"))).subquery())
     conditions=(RecordDocument.owner_job_card_id.is_not(None),RecordDocument.payment_id.is_(None),RecordDocument.deleted_at.is_(None),RecordDocument.status.in_(("SUBMITTED","UNDER_REVIEW")),RecordDocument.id.in_(select(latest.c.id).where(latest.c.rank==1)))
     base=select(RecordDocument,JobCard.number,MSME.name,Milestone.code,User.full_name).join(JobCard,JobCard.id==RecordDocument.owner_job_card_id).join(MSME,MSME.id==JobCard.msme_id).outerjoin(Visit,Visit.id==RecordDocument.visit_id).outerjoin(Milestone,or_(Milestone.id==RecordDocument.milestone_id,Milestone.id==Visit.milestone_id)).join(User,User.id==RecordDocument.uploaded_by).where(*conditions,JobCard.deleted_at.is_(None))
     total=int(db.scalar(select(func.count()).select_from(base.subquery())) or 0)
@@ -2361,7 +2437,46 @@ def _job_activity_out(db:Session,row:JobActivity)->JobActivityOut:
     if sla_due and sla_due.tzinfo is None: sla_due=sla_due.replace(tzinfo=timezone.utc)
     visit=db.get(Visit,row.visit_id) if row.visit_id else None
     plan=db.get(PlannedVisit,row.planned_visit_id) if row.planned_visit_id else None
-    return JobActivityOut(id=row.id,job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=row.visit_id,visit_number=visit.visit_number if visit else plan.visit_number if plan else None,planned_visit_id=row.planned_visit_id,activity_type_id=row.activity_type_id,activity_type_code=kind.code if kind else "",activity_type_name=kind.name if kind else "",name=row.name,description=row.description,assigned_user_id=row.assigned_user_id,assigned_user_name=assignee.full_name if assignee else "",start_date=row.start_date,end_date=row.end_date,expected_completion_date=row.expected_completion_date,sla_due_at=sla_due,duration_minutes=row.duration_minutes,mandays=mandays,status=row.status,review_status=row.review_status,review_remarks=row.review_remarks,reviewed_by=row.reviewed_by,reviewed_at=row.reviewed_at,remarks=row.remarks,created_by=row.created_by,created_at=row.created_at)
+    milestone=db.get(Milestone,row.milestone_id)
+    msme=db.get(MSME,card.msme_id) if card else None
+    activity_visit=visit.visit_number if visit else plan.visit_number if plan else None
+    refs=[]
+    if milestone and activity_visit:
+        candidates=list(db.scalars(select(ZedReferenceDocument).where(ZedReferenceDocument.active.is_(True),ZedReferenceDocument.milestone_code==milestone.code,ZedReferenceDocument.visit_number==activity_visit).order_by(ZedReferenceDocument.uploaded_at.desc())))
+        activity_name=" ".join(row.name.split()).casefold()
+        candidates=[ref for ref in candidates if " ".join(ref.activity_name.split()).casefold()==activity_name]
+        industry=(msme.industry or "").strip().casefold() if msme else ""
+        specific=[ref for ref in candidates if ref.industry and ref.industry.strip().casefold()==industry]
+        refs=[specific[0]] if specific else [ref for ref in candidates if not ref.industry][:1]
+    return JobActivityOut(id=row.id,job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=row.visit_id,visit_number=activity_visit,planned_visit_id=row.planned_visit_id,activity_type_id=row.activity_type_id,activity_type_code=kind.code if kind else "",activity_type_name=kind.name if kind else "",name=row.name,description=row.description,assigned_user_id=row.assigned_user_id,assigned_user_name=assignee.full_name if assignee else "",start_date=row.start_date,end_date=row.end_date,expected_completion_date=row.expected_completion_date,sla_due_at=sla_due,duration_minutes=row.duration_minutes,mandays=mandays,status=row.status,review_status=row.review_status,review_remarks=row.review_remarks,reviewed_by=row.reviewed_by,reviewed_at=row.reviewed_at,remarks=row.remarks,created_by=row.created_by,created_at=row.created_at,reference_documents=[{"id":ref.id,"industry":ref.industry,"milestone_code":ref.milestone_code,"visit_number":ref.visit_number,"activity_name":ref.activity_name,"file_name":ref.file_name,"file_size":ref.file_size,"mime_type":ref.mime_type} for ref in refs])
+
+def _activity_record_documents(db:Session,row:JobActivity)->list[RecordDocument]:
+    legacy_type_pattern=f"%Activity-{row.id}\\_%"
+    query=select(RecordDocument).where(
+        or_(RecordDocument.job_card_id==row.job_card_id,RecordDocument.owner_job_card_id==row.job_card_id),
+        RecordDocument.deleted_at.is_(None),
+        or_(RecordDocument.activity_id==row.id,and_(RecordDocument.activity_id.is_(None),RecordDocument.document_type.like(legacy_type_pattern,escape="\\"))),
+    ).order_by(RecordDocument.version.desc(),RecordDocument.id.desc())
+    return list(db.scalars(query))
+
+def _ensure_activity_draft_document(db:Session,row:JobActivity,user:User)->None:
+    documents=_activity_record_documents(db,row)
+    if any(document.status=="DRAFT" for document in documents):return
+    prior=next((document for document in documents if document.status in ("SUBMITTED","UNDER_REVIEW","APPROVED","RETURNED","REJECTED") and document.editor_provider=="GOOGLE" and document.google_file_id),None)
+    if not prior:return
+    prior_path=STORAGE_ROOT/prior.storage_key
+    if not prior_path.is_file():raise HTTPException(409,"Sync the submitted Google Doc before starting an in-progress draft.")
+    latest_version=max((document.version for document in documents),default=prior.version)
+    suffix=Path(prior.file_name).suffix
+    google_title=f"{Path(prior.file_name).stem}_Draft_v{latest_version+1}"
+    copied=google_workspace.copy_file(_google_access_for_user(db,user.id),prior.google_file_id,google_title)
+    file_id=str(copied.get("id", ""));url=str(copied.get("webViewLink", ""))
+    if not file_id or not url:raise HTTPException(502,"Google copied the draft but did not return its editor link.")
+    try:key=save_file(prior.file_name,prior.mime_type,prior_path.read_bytes())
+    except ValueError as exc:raise HTTPException(422,str(exc)) from None
+    revision=RecordDocument(owner_job_card_id=prior.owner_job_card_id,job_card_id=row.job_card_id,activity_id=row.id,document_type=prior.document_type,file_name=f"{Path(prior.file_name).stem}_Draft_v{latest_version+1}{suffix}",storage_key=key,file_size=prior.file_size,mime_type=prior.mime_type,editor_provider=prior.editor_provider,google_file_id=file_id,google_file_url=url,version=latest_version+1,status="DRAFT",remarks=f"Draft copy opened while activity {row.name} is in progress.",uploaded_by=user.id)
+    db.add(revision);db.flush()
+    audit(db,user.id,"ACTIVITY_DOCUMENT_DRAFT_STARTED","DOCUMENT",revision.id,f"Activity {row.id}; copied from version {prior.version}.")
 
 @app.get("/api/job-cards/{card_id}/activities",response_model=list[JobActivityOut])
 def list_job_activities(card_id:int,db:DB,user:Annotated[User,Depends(current_user)],milestone_id:int|None=None,status_filter:str|None=Query(default=None,alias="status")):
@@ -2374,17 +2489,19 @@ def list_job_activities(card_id:int,db:DB,user:Annotated[User,Depends(current_us
 @app.get("/api/zed-m1/references")
 def list_zed_m1_references(db:DB,user:Annotated[User,Depends(current_user)]):
     rows=list(db.scalars(select(ZedReferenceDocument).where(ZedReferenceDocument.active.is_(True)).order_by(ZedReferenceDocument.visit_number,ZedReferenceDocument.activity_name,ZedReferenceDocument.uploaded_at.desc())))
-    return [{"id":r.id,"visit_number":r.visit_number,"activity_name":r.activity_name,"file_name":r.file_name,"file_size":r.file_size,"mime_type":r.mime_type,"uploaded_at":r.uploaded_at} for r in rows]
+    return [{"id":r.id,"industry":r.industry,"milestone_code":r.milestone_code,"visit_number":r.visit_number,"activity_name":r.activity_name,"file_name":r.file_name,"file_size":r.file_size,"mime_type":r.mime_type,"uploaded_at":r.uploaded_at} for r in rows]
 
 @app.post("/api/zed-m1/references",status_code=201)
-def upload_zed_m1_reference(data:RecordFileUpload,visit_number:Annotated[int,Query(ge=1,le=2)],activity_name:Annotated[str,Query(min_length=2,max_length=240)],db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
+def upload_zed_m1_reference(data:RecordFileUpload,industry:Annotated[str,Query(min_length=2,max_length=120)],milestone_code:Annotated[str,Query(pattern="^M[123]$")],visit_number:Annotated[int,Query(ge=1,le=20)],activity_name:Annotated[str,Query(min_length=2,max_length=240)],db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
+    if data.mime_type!="application/vnd.openxmlformats-officedocument.wordprocessingml.document" or not data.file_name.lower().endswith(".docx"):
+        raise HTTPException(422,"Industry reference templates must be Word (.docx) files so consultants can open them as Google Docs.")
     try: key,size=_save_encoded_file(data.file_name,data.mime_type,data.content_base64)
     except HTTPException: raise
-    for prior in db.scalars(select(ZedReferenceDocument).where(ZedReferenceDocument.visit_number==visit_number,ZedReferenceDocument.activity_name==activity_name,ZedReferenceDocument.active.is_(True))):
+    for prior in db.scalars(select(ZedReferenceDocument).where(ZedReferenceDocument.industry==industry,ZedReferenceDocument.milestone_code==milestone_code,ZedReferenceDocument.visit_number==visit_number,ZedReferenceDocument.activity_name==activity_name,ZedReferenceDocument.active.is_(True))):
         prior.active=False
-    row=ZedReferenceDocument(visit_number=visit_number,activity_name=activity_name,file_name=data.file_name,storage_key=key,file_size=size,mime_type=data.mime_type,uploaded_by=user.id)
+    row=ZedReferenceDocument(industry=industry,milestone_code=milestone_code,visit_number=visit_number,activity_name=activity_name,file_name=data.file_name,storage_key=key,file_size=size,mime_type=data.mime_type,uploaded_by=user.id)
     db.add(row);db.commit();db.refresh(row)
-    return {"id":row.id,"visit_number":row.visit_number,"activity_name":row.activity_name,"file_name":row.file_name,"file_size":row.file_size,"mime_type":row.mime_type,"uploaded_at":row.uploaded_at}
+    return {"id":row.id,"industry":row.industry,"milestone_code":row.milestone_code,"visit_number":row.visit_number,"activity_name":row.activity_name,"file_name":row.file_name,"file_size":row.file_size,"mime_type":row.mime_type,"uploaded_at":row.uploaded_at}
 
 @app.delete("/api/zed-m1/references/{reference_id}")
 def archive_zed_m1_reference(reference_id:int,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
@@ -2424,7 +2541,7 @@ def create_job_activity(card_id:int,data:JobActivityCreate,db:DB,user:Annotated[
     if data.status=="COMPLETED" and data.duration_minutes==0:raise HTTPException(422,"Record the activity duration before completing it.")
     row=JobActivity(job_card_id=card_id,milestone_id=milestone.id,visit_id=data.visit_id,activity_type_id=kind.id,name=data.name,description=data.description,assigned_user_id=assignee_id,start_date=data.start_date,end_date=data.end_date,duration_minutes=data.duration_minutes,status=data.status,review_status="SUBMITTED" if data.status=="COMPLETED" else "NOT_SUBMITTED",remarks=data.remarks,created_by=user.id)
     db.add(row);db.flush();audit(db,user.id,"ACTIVITY_CREATED","JOB_ACTIVITY",row.id,f"{card.number}; {kind.code}; {row.name}")
-    if assignee_id!=user.id:notify(db,assignee_id,f"Activity assigned on Job Card {card.number}: {row.name}.",f"/user/activities?job_card={card_id}")
+    if assignee_id!=user.id:notify(db,assignee_id,f"Activity assigned on Job Card {card.number}: {row.name}.",f"/user/job-cards?card={card_id}")
     db.commit();db.refresh(row);return _job_activity_out(db,row)
 
 @app.patch("/api/activities/{activity_id}",response_model=JobActivityOut)
@@ -2435,23 +2552,32 @@ def update_job_activity(activity_id:int,data:JobActivityUpdate,db:DB,user:Annota
     if user.role!=Role.ADMIN and row.assigned_user_id!=user.id:raise HTTPException(403,"Only the assigned consultant or Admin can update this activity.")
     if row.status in ("COMPLETED","CANCELLED"):raise HTTPException(409,"A closed activity cannot be changed.")
     updates=data.model_dump(exclude_unset=True)
-    if updates.get("status")=="IN_PROGRESS" and row.planned_visit_id and not updates.get("expected_completion_date",row.expected_completion_date): raise HTTPException(422,"Set an expected completion date when marking this visit activity In Process.")
     start=updates.get("start_date",row.start_date);end=updates.get("end_date",row.end_date)
     if start and end and end<start:raise HTTPException(422,"Activity end date cannot precede its start date.")
     duration=updates.get("duration_minutes",row.duration_minutes)
+    activity_documents=_activity_record_documents(db,row)
+    latest_documents_by_type={}
+    for document in activity_documents:
+        if document.status in ("SUBMITTED","UNDER_REVIEW","APPROVED"):
+            latest_documents_by_type.setdefault(document.document_type,document)
+    reviewable_documents=list(latest_documents_by_type.values())
     if updates.get("status")=="COMPLETED":
         milestone=db.get(Milestone,row.milestone_id);_require_work_payment(db,card,milestone)
         if duration==0 and row.planned_visit_id is None:raise HTTPException(422,"Record the activity duration before completing it.")
-        if row.planned_visit_id and not db.scalar(select(JobActivityAttachment.id).where(JobActivityAttachment.activity_id==row.id)):
-            raise HTTPException(422,"Upload the required deliverable before completing this M1 task.")
+        has_activity_evidence=db.scalar(select(JobActivityAttachment.id).where(JobActivityAttachment.activity_id==row.id)) is not None
+        if row.planned_visit_id and not (has_activity_evidence or reviewable_documents):
+            raise HTTPException(422,"Upload the activity deliverable for Admin review before completing this task.")
+    if updates.get("status")=="IN_PROGRESS" and row.planned_visit_id:
+        _ensure_activity_draft_document(db,row,user)
     previous=row.status
     for field,value in updates.items():setattr(row,field,value)
     if updates.get("status")=="COMPLETED":
         row.review_status="SUBMITTED";row.review_remarks=None;row.reviewed_by=None;row.reviewed_at=None
         pending_files=list(db.scalars(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==row.id,JobActivityAttachment.status=="DRAFT")))
         for attachment in pending_files: attachment.status="SUBMITTED"
-        if pending_files and card.created_by!=user.id:
-            notify(db,card.created_by,f"{row.name} deliverable(s) were submitted for review on Job Card {card.number}.",f"/admin/documents")
+        if pending_files or reviewable_documents:
+            for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+                notify(db,admin.id,f"{row.name} and its deliverable were submitted for review on Job Card {card.number}. Please review them within 24 hours.",f"/admin/documents")
         if row.planned_visit_id:
             planned=db.get(PlannedVisit,row.planned_visit_id)
             milestone=db.get(Milestone,row.milestone_id)
@@ -2491,11 +2617,14 @@ def review_job_activity(activity_id:int,data:ActivityAttachmentReviewIn,db:DB,us
                 planned.status="IN_PROGRESS"
                 activity.sla_due_at=datetime.now(timezone.utc)+timedelta(hours=24)
                 activity.end_date=activity.sla_due_at.astimezone(ZoneInfo("Asia/Kolkata")).date()
-        notify(db,activity.assigned_user_id,f"Activity {activity.name} was {data.decision.lower()}: {data.comment}",f"/user/activities?job_card={card.id}")
+        notify(db,activity.assigned_user_id,f"Activity {activity.name} was {data.decision.lower()}: {data.comment}",f"/user/job-cards?card={card.id}")
     milestone=db.get(Milestone,activity.milestone_id)
     if data.decision=="APPROVED" and milestone and _milestone_admin_review_ready(db,milestone):
         for manager in db.scalars(select(User).where(User.role==Role.MANAGEMENT,User.status==AccountStatus.ACTIVE)):
             notify(db,manager.id,f"Admin approved milestone activities and files for {milestone.code} on Job Card {card.number}. Ready for milestone review.",f"/management/reviews?milestone={milestone.id}")
+    if data.decision=="APPROVED" and activity.planned_visit_id:
+        planned=db.get(PlannedVisit,activity.planned_visit_id)
+        if planned:finish_approved_visit_deliverables(db,planned,user)
     audit(db,user.id,f"ACTIVITY_REVIEW_{data.decision}","JOB_ACTIVITY",activity.id,f"{activity.name}; {data.comment}")
     db.commit();return _job_activity_out(db,activity)
 
@@ -2530,7 +2659,7 @@ def activity_attachment_review_queue(db:DB,user:Annotated[User,Depends(require(R
         .where(JobActivityAttachment.status.in_(("SUBMITTED","UNDER_REVIEW")),JobCard.deleted_at.is_(None)))
     total=int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
     rows=db.execute(query.order_by(JobActivityAttachment.uploaded_at.desc(),JobActivityAttachment.id.desc()).offset((page-1)*page_size).limit(page_size)).all()
-    items=[{"id":attachment.id,"activity_id":activity.id,"job_card_id":activity.job_card_id,"job_card_number":card_number,"msme_name":msme_name,"milestone_code":milestone_code,"activity_name":activity.name,"file_name":attachment.file_name,"file_size":attachment.file_size,"mime_type":attachment.mime_type,"status":attachment.status,"remarks":attachment.review_remarks,"uploaded_by":attachment.uploaded_by,"uploaded_by_name":uploader_name,"uploaded_at":attachment.uploaded_at,"reviewed_by":attachment.reviewed_by,"reviewed_at":attachment.reviewed_at} for attachment,activity,card_number,msme_name,milestone_code,uploader_name in rows]
+    items=[{"id":attachment.id,"activity_id":activity.id,"job_card_id":activity.job_card_id,"job_card_number":card_number,"msme_name":msme_name,"milestone_code":milestone_code,"activity_name":activity.name,"file_name":attachment.file_name,"file_size":attachment.file_size,"mime_type":attachment.mime_type,"status":attachment.status,"remarks":attachment.review_remarks,"uploaded_by":attachment.uploaded_by,"uploaded_by_name":uploader_name,"uploaded_at":attachment.uploaded_at,"submitted_at":activity.updated_at,"reviewed_by":attachment.reviewed_by,"reviewed_at":attachment.reviewed_at} for attachment,activity,card_number,msme_name,milestone_code,uploader_name in rows]
     return {"items":items,"total":total,"page":page,"page_size":page_size}
 
 @app.post("/api/activity-attachments/{attachment_id}/review")
@@ -2544,12 +2673,22 @@ def review_activity_attachment(attachment_id:int,data:ActivityAttachmentReviewIn
     previous=attachment.status;attachment.status=data.decision;attachment.review_remarks=data.comment;attachment.reviewed_by=user.id;attachment.reviewed_at=datetime.now(timezone.utc)
     if data.decision in ("RETURNED","REJECTED"):
         activity.status="IN_PROGRESS";activity.remarks=data.comment
-        notify(db,activity.assigned_user_id,f"{activity.name} deliverable was {data.decision.lower()}: {data.comment}",f"/user/activities?job_card={card.id}")
+        activity.review_status=data.decision;activity.review_remarks=data.comment;activity.reviewed_by=user.id;activity.reviewed_at=datetime.now(timezone.utc)
+        if activity.planned_visit_id:
+            planned=db.get(PlannedVisit,activity.planned_visit_id)
+            if planned:
+                planned.status="IN_PROGRESS"
+                activity.sla_due_at=datetime.now(timezone.utc)+timedelta(hours=24)
+                activity.end_date=activity.sla_due_at.astimezone(ZoneInfo("Asia/Kolkata")).date()
+        notify(db,activity.assigned_user_id,f"{activity.name} deliverable was {data.decision.lower()}: {data.comment}",f"/user/job-cards?card={card.id}")
     if data.decision=="APPROVED":
         milestone=db.get(Milestone,activity.milestone_id)
         if milestone and _milestone_admin_review_ready(db,milestone):
             for manager in db.scalars(select(User).where(User.role==Role.MANAGEMENT,User.status==AccountStatus.ACTIVE)):
                 notify(db,manager.id,f"Admin approved the submitted activities and files for {milestone.code} on Job Card {card.number}. It is ready for your milestone review.",f"/management/reviews?milestone={milestone.id}")
+        if activity.planned_visit_id:
+            planned=db.get(PlannedVisit,activity.planned_visit_id)
+            if planned:finish_approved_visit_deliverables(db,planned,user)
     audit(db,user.id,f"ACTIVITY_DELIVERABLE_{data.decision}","JOB_ACTIVITY",activity.id,f"attachment={attachment.file_name}; status {previous}->{data.decision}; {data.comment}")
     db.commit();db.refresh(attachment);return JobActivityAttachmentOut.model_validate(attachment)
 
@@ -3005,8 +3144,19 @@ def visit_deliverables_complete(db:Session,milestone:Milestone,planned_visit_id:
     card=db.get(JobCard,planned.job_card_id) if planned else None
     for name,_ in milestone_visit_deliverables(milestone,visit.visit_number if visit else planned.visit_number if planned else None,card):
         task=db.scalar(select(JobActivity).where(JobActivity.planned_visit_id==planned_visit_id,JobActivity.name==name))
-        if not task or task.status!="COMPLETED" or not db.scalar(select(JobActivityAttachment.id).where(JobActivityAttachment.activity_id==task.id)):
+        attachment=db.scalar(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==task.id).order_by(JobActivityAttachment.id.desc()).limit(1)) if task else None
+        if not task or task.status!="COMPLETED" or task.review_status!="APPROVED" or not attachment or attachment.status!="APPROVED":
             return False
+    return True
+
+def finish_approved_visit_deliverables(db:Session,planned:PlannedVisit,actor:User):
+    milestone=db.get(Milestone,planned.milestone_id);card=db.get(JobCard,planned.job_card_id)
+    if not milestone or not card or planned.status=="COMPLETED":return False
+    visit=db.scalar(select(Visit).where(Visit.planned_visit_id==planned.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))).order_by(Visit.visit_number.desc()).limit(1))
+    if not visit or not milestone_visit_deliverables(milestone,visit.visit_number,card) or not visit_deliverables_complete(db,milestone,planned.id):return False
+    planned.status="COMPLETED";planned.outcome=planned.outcome or "Visit record submitted and all required activities and evidence approved."
+    audit(db,actor.id,"VISIT_DELIVERABLES_APPROVED","PLANNED_VISIT",planned.id,"All required visit activities and evidence were approved.")
+    notify(db,visit.created_by,f"All required activities and evidence for visit {visit.visit_number} on Job Card {card.number} were approved. The visit is now valid.",f"/job-cards/{card.id}")
     return True
 
 @app.post("/api/planned-visits",response_model=PlannedVisitOut,status_code=201)
@@ -3029,7 +3179,7 @@ def create_planned_visit(data:PlannedVisitCreate,db:DB,user:Annotated[User,Depen
     fields=data.model_dump(exclude={"allow_conflict"});row=PlannedVisit(**fields,visit_number=max(active_plan_count+1,next_visit_number),consultant_id=user.id,created_by=user.id);db.add(row);db.flush()
     zed_silver_m1=milestone.code.upper()=="M1" and (card.service_name or "").upper().startswith("ZED") and "SILVER" in f"{card.service_name} {card.package_code}".upper()
     if zed_silver_m1: ensure_visit_deliverable_tasks(db,row,user,None,datetime.combine(row.visit_date,row.start_time,tzinfo=ZoneInfo("Asia/Kolkata")))
-    audit(db,user.id,"PLANNED_VISIT_CREATED","PLANNED_VISIT",row.id,f"{card.number} visit {row.visit_number} {row.visit_date} {row.start_time}; team={team}");planner_notify(db,card,f"Consultant {user.full_name} planned visit {row.visit_number} for {card.number} on {row.visit_date}. Checklist activities are now available in My Activities.");db.commit();db.refresh(row);return row
+    audit(db,user.id,"PLANNED_VISIT_CREATED","PLANNED_VISIT",row.id,f"{card.number} visit {row.visit_number} {row.visit_date} {row.start_time}; team={team}");planner_notify(db,card,f"Consultant {user.full_name} planned visit {row.visit_number} for {card.number} on {row.visit_date}. The visit checklist is available on the Job Card visit records.");db.commit();db.refresh(row);return row
 
 @app.patch("/api/planned-visits/{visit_id}",response_model=PlannedVisitOut)
 def update_planned_visit(visit_id:int,data:PlannedVisitUpdate,db:DB,user:Annotated[User,Depends(current_user)]):
@@ -3200,7 +3350,7 @@ def submit_visit(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.END
         if visit_deliverables_complete(db,milestone,planned.id):
             planned.status="COMPLETED"
         due_label=due_at.astimezone(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y %H:%M")
-        notify(db,user.id,f"Visit {visit.visit_number} was submitted. Complete its {task_count} {milestone.code} deliverable tasks by {due_label}.",f"/user/activities?job_card={card.id}")
+        notify(db,user.id,f"Visit {visit.visit_number} was submitted. Complete and submit its {task_count} {milestone.code} activities by {due_label}.",f"/user/job-cards?card={card.id}")
         notify(db,card.created_by,f"Visit {visit.visit_number} was submitted for Job Card {card.number}; {task_count} {milestone.code} tasks are due within 24 hours.",f"/job-cards/{card.id}")
     else:
         audit(db,user.id,"PLANNED_VISIT_COMPLETED","PLANNED_VISIT",planned.id,f"Linked visit report {visit.visit_number}")
@@ -3308,14 +3458,14 @@ def create_native_work_product(card_id:int,data:WorkProductDraftIn,db:DB,user:An
 @app.get("/api/record-documents/{document_id}/editor-content")
 def get_native_work_product(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     document=db.get(RecordDocument,document_id)
-    if not document or document.uploaded_by!=user.id or document.editor_provider!="PORTAL" or document.status not in ("DRAFT","RETURNED"):
+    if not document or document.uploaded_by!=user.id or document.editor_provider!="PORTAL" or document.status not in ("DRAFT","RETURNED","REJECTED"):
         raise HTTPException(404,"Editable portal document not found.")
     return json.loads(document.remarks or "{}")
 
 @app.post("/api/record-documents/{document_id}/native-revision",response_model=RecordDocumentOut,status_code=201)
 def create_native_work_product_revision(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     prior=db.get(RecordDocument,document_id)
-    if not prior or prior.uploaded_by!=user.id or prior.editor_provider!="PORTAL" or prior.status!="RETURNED": raise HTTPException(404,"Returned portal document not found.")
+    if not prior or prior.uploaded_by!=user.id or prior.editor_provider!="PORTAL" or prior.status not in ("RETURNED","REJECTED"): raise HTTPException(404,"Returned or rejected portal document not found.")
     card=mutable_card(assigned_card(db,user,prior.owner_job_card_id or prior.job_card_id));_require_work_payment(db,card)
     path=STORAGE_ROOT/prior.storage_key
     if not path.is_file(): raise HTTPException(404,"Saved draft file is missing.")
@@ -3323,16 +3473,16 @@ def create_native_work_product_revision(document_id:int,db:DB,user:Annotated[Use
     except ValueError as exc: raise HTTPException(422,str(exc)) from None
     columns=("ticket_id","enquiry_id","job_card_id","milestone_id","action_id","visit_id","payment_id","milestone_review_id","visit_review_id","approval_id")
     relations={name:getattr(prior,name) for name in columns}
-    revision=RecordDocument(owner_job_card_id=prior.owner_job_card_id,**relations,document_type=prior.document_type,file_name=prior.file_name,storage_key=key,file_size=prior.file_size,mime_type=prior.mime_type,editor_provider="PORTAL",version=prior.version+1,status="DRAFT",remarks=prior.remarks,uploaded_by=user.id)
+    revision=RecordDocument(owner_job_card_id=prior.owner_job_card_id,**relations,activity_id=prior.activity_id,document_type=prior.document_type,file_name=prior.file_name,storage_key=key,file_size=prior.file_size,mime_type=prior.mime_type,editor_provider="PORTAL",version=prior.version+1,status="DRAFT",remarks=prior.remarks,uploaded_by=user.id)
     db.add(revision);db.flush();audit(db,user.id,"PORTAL_WORK_PRODUCT_REVISION_STARTED","DOCUMENT",revision.id,f"Revision of returned document {prior.id}");db.commit();db.refresh(revision)
     return revision
 
 @app.put("/api/record-documents/{document_id}/editor-content",response_model=RecordDocumentOut)
 def update_native_work_product(document_id:int,data:WorkProductDraftIn,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     document=db.get(RecordDocument,document_id)
-    if not document or document.uploaded_by!=user.id or document.editor_provider!="PORTAL" or document.status not in ("DRAFT","RETURNED"):
+    if not document or document.uploaded_by!=user.id or document.editor_provider!="PORTAL" or document.status not in ("DRAFT","RETURNED","REJECTED"):
         raise HTTPException(404,"Editable portal document not found.")
-    if document.status=="RETURNED": raise HTTPException(409,"Create a revised version before editing this returned submission.")
+    if document.status in ("RETURNED","REJECTED"): raise HTTPException(409,"Create a revised version before editing this returned submission.")
     return _save_native_work_product(db,document,data,user)
 
 @app.delete("/api/record-documents/{document_id}/editor-content",status_code=204)
@@ -3386,13 +3536,15 @@ def _sheet_snapshot_rows(value:dict)->list[list[str]]:
     return [[str((cells.get(str(r),{}).get(str(c),{}) or {}).get("f") or (cells.get(str(r),{}).get(str(c),{}) or {}).get("v") or "") for c in range(max_col+1)] for r in range(max_row+1)]
 
 @app.get("/api/google-workspace/status")
-def google_workspace_status(db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
+def google_workspace_status(db:DB,response:Response,user:Annotated[User,Depends(require(Role.ADMIN,Role.END_USER))]):
+    response.headers["Cache-Control"]="no-store, no-cache, must-revalidate"
     email_setting=db.get(SystemSetting,"google_master_account_email")
     token_setting=db.get(SystemSetting,"google_master_refresh_token")
     return {"configured":google_workspace.configured(),"configuration":google_workspace.configuration_status(),"connected":bool(token_setting and token_setting.value),"email":email_setting.value if email_setting else None,"shared":True}
 
 @app.get("/api/google-workspace/master/status")
-def google_workspace_master_status(db:DB,admin:Annotated[User,Depends(require(Role.ADMIN))]):
+def google_workspace_master_status(db:DB,response:Response,admin:Annotated[User,Depends(require(Role.ADMIN))]):
+    response.headers["Cache-Control"]="no-store, no-cache, must-revalidate"
     email_setting=db.get(SystemSetting,"google_master_account_email")
     token_setting=db.get(SystemSetting,"google_master_refresh_token")
     return {"configured":google_workspace.configured(),"configuration":google_workspace.configuration_status(),"connected":bool(token_setting and token_setting.value),"email":email_setting.value if email_setting else None}
@@ -3450,6 +3602,9 @@ def _google_access_for_user(db:Session,user_id:int)->str:
 @app.post("/api/job-cards/{card_id}/google-work-products",response_model=RecordDocumentOut,status_code=201)
 def create_google_work_product(card_id:int,data:GoogleWorkProductCreate,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     card=mutable_card(assigned_card(db,user,card_id));_require_work_payment(db,card)
+    if data.activity_id is not None:
+        activity=db.get(JobActivity,data.activity_id)
+        if not activity or activity.job_card_id!=card.id or activity.assigned_user_id!=user.id: raise HTTPException(404,"Activity not found.")
     access=_google_access_for_user(db,user.id)
     created=google_workspace.create_file(access,data.title.strip(),data.kind)
     file_id=str(created.get("id", ""));url=str(created.get("webViewLink", ""))
@@ -3459,8 +3614,35 @@ def create_google_work_product(card_id:int,data:GoogleWorkProductCreate,db:DB,us
     except ValueError as exc: raise HTTPException(422,str(exc))
     document_type=f"Google {'Document' if data.kind=='DOCUMENT' else 'Sheet'}: {data.title.strip()}"[:80]
     prior=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type==document_type)) or 0)
-    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id,document_type=document_type,file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=prior+1,status="DRAFT",remarks=draft_json,uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=file_id,google_file_url=url)
+    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id,activity_id=data.activity_id,document_type=document_type,file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=prior+1,status="DRAFT",remarks=draft_json,uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=file_id,google_file_url=url)
     db.add(document);db.flush();audit(db,user.id,"GOOGLE_WORK_PRODUCT_CREATED","DOCUMENT",document.id,f"{document_type}; google file {file_id}");db.commit();db.refresh(document)
+    return document
+
+@app.post("/api/activities/{activity_id}/google-work-products/from-reference",response_model=RecordDocumentOut,status_code=201)
+def create_google_work_product_from_reference(activity_id:int,data:GoogleReferenceWorkProductCreate,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
+    activity=db.get(JobActivity,activity_id)
+    if not activity or activity.assigned_user_id!=user.id: raise HTTPException(404,"Activity not found.")
+    card=mutable_card(assigned_card(db,user,activity.job_card_id));_require_work_payment(db,card)
+    compatible={ref["id"] for ref in _job_activity_out(db,activity).reference_documents}
+    if data.reference_document_id not in compatible: raise HTTPException(404,"This reference is not assigned to the activity.")
+    reference=db.get(ZedReferenceDocument,data.reference_document_id)
+    if not reference or reference.mime_type!="application/vnd.openxmlformats-officedocument.wordprocessingml.document" or not reference.file_name.lower().endswith(".docx"):
+        raise HTTPException(422,"Create using reference requires a Word (.docx) template.")
+    source=STORAGE_ROOT/reference.storage_key
+    if not source.is_file(): raise HTTPException(404,"Reference file not found.")
+    title=data.title.strip()
+    access=_google_access_for_user(db,user.id)
+    created=google_workspace.create_doc_from_upload(access,title,source.read_bytes(),reference.mime_type)
+    file_id=str(created.get("id", ""));url=str(created.get("webViewLink", ""))
+    if not file_id or not url: raise HTTPException(502,"Google imported the reference but did not return its editor link.")
+    filename,mime,content,draft_json=_work_product_file(WorkProductDraftIn(kind="DOCUMENT",title=title))
+    try: storage_key=save_file(filename,mime,content)
+    except ValueError as exc: raise HTTPException(422,str(exc))
+    document_type=f"Google Document: {title}"[:80]
+    prior=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type==document_type)) or 0)
+    remarks=f"Created from Admin reference: {reference.file_name}. {draft_json}"
+    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id,activity_id=activity.id,document_type=document_type,file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=prior+1,status="DRAFT",remarks=remarks,uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=file_id,google_file_url=url)
+    db.add(document);db.flush();audit(db,user.id,"GOOGLE_WORK_PRODUCT_CREATED_FROM_REFERENCE","DOCUMENT",document.id,f"{document_type}; reference {reference.id}; Google file {file_id}");db.commit();db.refresh(document)
     return document
 
 def _sync_google_work_product(db:Session,document:RecordDocument,user:User,actor:User|None=None)->str:
@@ -3502,20 +3684,20 @@ def admin_sync_google_work_product(document_id:int,db:DB,admin:Annotated[User,De
     return document
 
 def _start_google_revision(db:Session,document:RecordDocument,user:User)->RecordDocument:
-    if document.status!="RETURNED": return document
+    if document.status not in ("RETURNED","REJECTED"): return document
     latest=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==document.job_card_id,RecordDocument.document_type==document.document_type)) or document.version)
     old_path=STORAGE_ROOT/document.storage_key
     if not old_path.is_file(): raise HTTPException(404,"The saved portal copy is missing. Sync the Google file before continuing.")
     try: storage_key=save_file(document.file_name,document.mime_type,old_path.read_bytes())
     except ValueError as exc: raise HTTPException(422,str(exc)) from None
-    revision=RecordDocument(owner_job_card_id=document.owner_job_card_id,ticket_id=document.ticket_id,enquiry_id=document.enquiry_id,job_card_id=document.job_card_id,milestone_id=document.milestone_id,action_id=document.action_id,visit_id=document.visit_id,payment_id=document.payment_id,milestone_review_id=document.milestone_review_id,approval_id=document.approval_id,document_type=document.document_type,file_name=document.file_name,storage_key=storage_key,file_size=document.file_size,mime_type=document.mime_type,editor_provider=document.editor_provider,google_file_id=document.google_file_id,google_file_url=document.google_file_url,version=latest+1,status="DRAFT",remarks=None,uploaded_by=user.id)
+    revision=RecordDocument(owner_job_card_id=document.owner_job_card_id,ticket_id=document.ticket_id,enquiry_id=document.enquiry_id,job_card_id=document.job_card_id,milestone_id=document.milestone_id,action_id=document.action_id,visit_id=document.visit_id,payment_id=document.payment_id,milestone_review_id=document.milestone_review_id,approval_id=document.approval_id,activity_id=document.activity_id,document_type=document.document_type,file_name=document.file_name,storage_key=storage_key,file_size=document.file_size,mime_type=document.mime_type,editor_provider=document.editor_provider,google_file_id=document.google_file_id,google_file_url=document.google_file_url,version=latest+1,status="DRAFT",remarks=None,uploaded_by=user.id)
     db.add(revision);db.flush();audit(db,user.id,"GOOGLE_WORK_PRODUCT_REVISION_STARTED","DOCUMENT",revision.id,f"Revised from returned version {document.version}")
     return revision
 
 @app.post("/api/record-documents/{document_id}/sync-google",response_model=RecordDocumentOut)
 def sync_google_work_product(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     document=db.get(RecordDocument,document_id)
-    if not document or document.uploaded_by!=user.id or document.status not in ("DRAFT","RETURNED"): raise HTTPException(404,"Editable Google document not found.")
+    if not document or document.uploaded_by!=user.id or document.status not in ("DRAFT","RETURNED","REJECTED"): raise HTTPException(404,"Editable Google document not found.")
     document=_start_google_revision(db,document,user)
     card=mutable_card(assigned_card(db,user,document.owner_job_card_id));_require_work_payment(db,card)
     old_key=_sync_google_work_product(db,document,user);db.commit();db.refresh(document)
@@ -3526,7 +3708,7 @@ def sync_google_work_product(document_id:int,db:DB,user:Annotated[User,Depends(r
 @app.get("/api/job-cards/{card_id}/work-products",response_model=list[RecordDocumentOut])
 def list_work_product_drafts(card_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     assigned_card(db,user,card_id)
-    return list(db.scalars(select(RecordDocument).where(RecordDocument.job_card_id==card_id,RecordDocument.uploaded_by==user.id,RecordDocument.editor_provider.in_(("GOOGLE","PORTAL")),RecordDocument.status.in_(("DRAFT","RETURNED"))).order_by(RecordDocument.uploaded_at.desc())))
+    return list(db.scalars(select(RecordDocument).where(RecordDocument.job_card_id==card_id,RecordDocument.uploaded_by==user.id,RecordDocument.editor_provider.in_(("GOOGLE","PORTAL")),RecordDocument.status.in_(("DRAFT","RETURNED","REJECTED"))).order_by(RecordDocument.uploaded_at.desc())))
 
 @app.post("/api/job-cards/{card_id}/documents",response_model=DocumentOut,status_code=201)
 def upload_document(card_id:int,data:DocumentUpload,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
@@ -3904,13 +4086,13 @@ def upload_record_document(record_type:str,record_id:str,data:RecordDocumentUplo
     if kind=="VISIT" and data.document_type=="Consultant Visit Report" and data.status=="SUBMITTED":
         card=db.get(JobCard,owner_card_id);milestone=db.get(Milestone,row.milestone_id)
         for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
-            notify(db,admin.id,f"Consultant visit report for {card.number if card else 'Job Card'} {milestone.code if milestone else ''} is awaiting approval.","/admin/documents")
+            notify(db,admin.id,f"Consultant visit report for {card.number if card else 'Job Card'} {milestone.code if milestone else ''} is awaiting approval. Please review it within 24 hours.","/admin/documents")
     db.commit();db.refresh(document);return document
 
 @app.post("/api/record-documents/{document_id}/submit",response_model=RecordDocumentOut)
 def submit_record_document(document_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     document=db.get(RecordDocument,document_id)
-    if not document or document.uploaded_by!=user.id or document.status not in ("DRAFT","RETURNED"): raise HTTPException(404,"Draft or returned document not found.")
+    if not document or document.uploaded_by!=user.id or document.status not in ("DRAFT","RETURNED","REJECTED"): raise HTTPException(404,"Draft, returned, or rejected document not found.")
     synced_old_key=None
     if document.owner_job_card_id:
         card=mutable_card(assigned_card(db,user,document.owner_job_card_id));milestone=db.get(Milestone,document.milestone_id) if document.milestone_id else None;_require_work_payment(db,card,milestone)
@@ -3937,14 +4119,29 @@ def review_record_document(document_id:int,data:RecordDocumentReview,db:DB,user:
     if document.payment_id is not None: raise HTTPException(403,"Payment evidence is managed by Finance and is not part of document review.")
     if document.owner_job_card_id: assigned_card(db,user,document.owner_job_card_id)
     if document.status not in ("SUBMITTED","UNDER_REVIEW"): raise HTTPException(409,"This document is not awaiting review.")
-    target_column=next((column for column in ("ticket_id","enquiry_id","job_card_id","milestone_id","action_id","visit_id","milestone_review_id","visit_review_id","approval_id") if getattr(document,column) is not None),None)
+    target_column=next((column for column in ("activity_id","ticket_id","enquiry_id","job_card_id","milestone_id","action_id","visit_id","milestone_review_id","visit_review_id","approval_id") if getattr(document,column) is not None),None)
     if target_column:
-        latest_id=db.scalar(select(RecordDocument.id).where(getattr(RecordDocument,target_column)==getattr(document,target_column),RecordDocument.document_type==document.document_type).order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1))
+        latest_id=db.scalar(select(RecordDocument.id).where(getattr(RecordDocument,target_column)==getattr(document,target_column),RecordDocument.document_type==document.document_type,RecordDocument.status.in_(("SUBMITTED","UNDER_REVIEW")),RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1))
         if latest_id!=document.id: raise HTTPException(409,"Only the latest document version can be reviewed.")
     document.status=data.decision;document.remarks=data.comment;document.reviewed_by=user.id;document.reviewed_at=datetime.now(timezone.utc);audit(db,user.id,f"RECORD_DOCUMENT_{data.decision}","DOCUMENT",document.id,data.comment)
     if document.owner_job_card_id:
         owner=document_owner(db,document.owner_job_card_id) or card_created_by(db,document.owner_job_card_id)
         if owner: notify(db,owner,f"{document.document_type} was {data.decision.lower()}: {data.comment}",f"/job-cards/{document.owner_job_card_id}")
+    if data.decision in ("RETURNED","REJECTED") and document.activity_id:
+        activity=db.scalar(select(JobActivity).where(JobActivity.id==document.activity_id).with_for_update())
+        if activity:
+            activity.status="IN_PROGRESS"
+            activity.review_status=data.decision
+            activity.review_remarks=data.comment
+            activity.reviewed_by=user.id
+            activity.reviewed_at=datetime.now(timezone.utc)
+            if activity.planned_visit_id:
+                planned=db.get(PlannedVisit,activity.planned_visit_id)
+                if planned:
+                    planned.status="IN_PROGRESS"
+                    activity.sla_due_at=datetime.now(timezone.utc)+timedelta(hours=24)
+                    activity.end_date=activity.sla_due_at.astimezone(ZoneInfo("Asia/Kolkata")).date()
+            notify(db,activity.assigned_user_id,f"Activity document {document.file_name} was {data.decision.lower()}: {data.comment}. Revise the work and submit it again.",f"/user/job-cards?card={activity.job_card_id}")
     review_milestone_id=document.milestone_id
     if review_milestone_id is None and document.visit_id:
         reviewed_visit=db.get(Visit,document.visit_id)
@@ -4109,7 +4306,7 @@ def list_notifications(db:DB,user:Annotated[User,Depends(current_user)]):
             if activity.end_date<today: state="OVERDUE"
             elif activity.end_date<=tomorrow: state="UPCOMING"
             else: continue
-        notify_once(db,user.id,f"Activity {activity.name} is {state.lower()} (due {due_label}).",f"/user/activities?job_card={activity.job_card_id}",f"task:activity:{activity.id}:{state}:{due_label}")
+        notify_once(db,user.id,f"Activity {activity.name} is {state.lower()} (due {due_label}).",f"/user/job-cards?card={activity.job_card_id}",f"task:activity:{activity.id}:{state}:{due_label}")
     db.commit()
     query=select(Notification).where(Notification.user_id==user.id)
     if user.role==Role.ADMIN: query=query.where(~or_(Notification.message.ilike("%payment%"),Notification.message.ilike("%invoice%")))

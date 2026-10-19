@@ -341,6 +341,9 @@ class EnquiryDocument(Base):
     remarks: Mapped[str|None]=mapped_column(Text,nullable=True)
     uploaded_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     uploaded_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
+    google_file_id: Mapped[str|None]=mapped_column(String(255),nullable=True,index=True)
+    google_file_url: Mapped[str|None]=mapped_column(String(1000),nullable=True)
+    google_synced_at: Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
 class MSME(Base):
     __tablename__="msmes"
     id: Mapped[int]=mapped_column(primary_key=True)
@@ -505,6 +508,8 @@ class ZedReferenceDocument(Base):
     __tablename__="zed_reference_documents"
     id: Mapped[int]=mapped_column(primary_key=True)
     visit_number: Mapped[int]=mapped_column(Integer,index=True)
+    industry: Mapped[str|None]=mapped_column(String(120),nullable=True,index=True)
+    milestone_code: Mapped[str]=mapped_column(String(24),default="M1",server_default="M1",index=True)
     activity_name: Mapped[str]=mapped_column(String(240),index=True)
     file_name: Mapped[str]=mapped_column(String(255))
     storage_key: Mapped[str]=mapped_column(String(255),unique=True)
@@ -606,6 +611,7 @@ class RecordDocument(Base):
     milestone_review_id: Mapped[int|None]=mapped_column(ForeignKey("milestone_review_history.id",ondelete="CASCADE"),nullable=True,index=True)
     visit_review_id: Mapped[int|None]=mapped_column(ForeignKey("visit_review_history.id",ondelete="CASCADE"),nullable=True,index=True)
     approval_id: Mapped[int|None]=mapped_column(ForeignKey("approvals.id",ondelete="CASCADE"),nullable=True,index=True)
+    activity_id: Mapped[int|None]=mapped_column(ForeignKey("job_activities.id",ondelete="SET NULL"),nullable=True,index=True)
     document_type: Mapped[str]=mapped_column(String(80),index=True)
     file_name: Mapped[str]=mapped_column(String(255))
     storage_key: Mapped[str]=mapped_column(String(255),unique=True)

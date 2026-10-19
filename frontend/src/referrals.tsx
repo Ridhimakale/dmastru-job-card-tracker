@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from './api';
-import { Button, Card, Field, Status } from './components';
+import { Button, Card, Field, IndustrySelect, Status } from './components';
+import { IndiaLocationField } from './india_location';
 
 type Referral={id:string;number:string;company_name:string;contact_person:string|null;enquiry_date:string;status:string;created_at:string};
 const services=['ZED Silver','ZED Bronze','ZED Gold','Lean','ISO','Training'];
@@ -23,7 +24,7 @@ export function Referrals(){
   return <main className="marketing-page referral-page"><header className="page-header"><div><p className="eyebrow">WORKSPACE</p><h1>Refer a Client</h1><p className="muted">Enter the enquiry details for Marketing to process and follow up. A referral is marked Successful once onboarding is complete.</p></div></header>
     <div className="referral-workspace"><Card title="Client referral"><form className="marketing-form referral-form" onSubmit={submit}>
       <Field name="company_name" label="Company name" required minLength={2}/><Field name="contact_person" label="Contact person"/><Field name="email" label="Email" type="email"/>
-      <Field name="phone" label="Phone"/><Field name="industry" label="Industry"/><Field name="location" label="Client location"/>
+      <Field name="phone" label="Phone"/><IndustrySelect name="industry"/><IndiaLocationField name="location" label="Client location"/>
       <fieldset className="field enquiry-for-field"><legend>Enquiry for (select all that apply) *</legend><div className="enquiry-for-options">{services.map(service=><label className="checkbox-label" key={service}><input type="checkbox" name="enquiry_for" value={service} checked={selectedServices.includes(service)} onChange={event=>setSelectedServices(current=>event.target.checked?[...current,service]:current.filter(value=>value!==service))}/>{service}</label>)}</div></fieldset>
       {selectedServices.some(service=>service.startsWith('ZED '))&&<><Field name="zed_id" label="ZED ID"/><Field name="zed_pass" label="ZED pass (optional)" type="password" autoComplete="new-password"/><small className="muted referral-zed-note">Stored encrypted; it is never displayed after saving.</small></>}
       <Field name="deadline_date" label="Response deadline date (required)" type="date" required/>

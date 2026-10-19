@@ -4,7 +4,7 @@ import { AppLayout } from './layout';
 import { ForgotPassword, Guard, HomeRedirect, Login, ResetPassword } from './pages';
 import { AdminDashboard, AdminDocumentReview, AuditLog, JobCards, Notifications, Settings, Workflow } from './admin';
 import { MasterData } from './master_data';
-import { Activity, Documents, MyJobCards, Notifications as UserNotifications, Profile, Registration, UserDashboard, Visits, WorkActivities } from './user';
+import { Activity, Documents, MyJobCards, Notifications as UserNotifications, Profile, Registration, UserDashboard, Visits } from './user';
 import { AdminReports, ApprovalDashboard, ApprovalQueue, ManagementAudit, ManagementDashboard, ManagementNotifications, ManagementReviews, Projects, Reports } from './management';
 import { FinanceDashboard, MarketingWorkspace, PaymentsWorkspace } from './marketing';
 import { ClosureWorkspace } from './closure';
@@ -28,7 +28,7 @@ export function App(){return <BrowserRouter><AuthProvider><Routes>
     <Route path="/admin/planner" element={<Guard roles={['ADMIN']}><Visits/></Guard>}/>
     <Route path="/admin/workflows" element={<Guard roles={['ADMIN','MANAGEMENT','FINANCE','END_USER','DIRECTOR','MARKETING']}><Workflows/></Guard>}/>
     <Route path="/actions" element={<Guard roles={['ADMIN','MANAGEMENT','FINANCE','END_USER','DIRECTOR']}><ActionsWorkspace/></Guard>}/>
-    <Route path="/user/dashboard" element={<Guard roles={['END_USER']}><UserDashboard/></Guard>}/><Route path="/user/job-cards" element={<Guard roles={['END_USER']}><MyJobCards/></Guard>}/><Route path="/user/mandays" element={<Guard roles={['END_USER']}><MyJobCards mandaysOnly/></Guard>}/><Route path="/user/visits" element={<Guard roles={['END_USER']}><Visits/></Guard>}/><Route path="/user/documents" element={<Guard roles={['END_USER']}><Documents/></Guard>}/><Route path="/user/activity" element={<Guard roles={['END_USER']}><Activity/></Guard>}/><Route path="/user/activities" element={<Guard roles={['END_USER']}><WorkActivities/></Guard>}/><Route path="/user/notifications" element={<Guard roles={['END_USER']}><UserNotifications/></Guard>}/><Route path="/user/profile" element={<Guard roles={['END_USER']}><Profile/></Guard>}/>
+    <Route path="/user/dashboard" element={<Guard roles={['END_USER']}><UserDashboard/></Guard>}/><Route path="/user/job-cards" element={<Guard roles={['END_USER']}><MyJobCards/></Guard>}/><Route path="/user/mandays" element={<Guard roles={['END_USER']}><MyJobCards mandaysOnly/></Guard>}/><Route path="/user/visits" element={<Guard roles={['END_USER']}><Visits/></Guard>}/><Route path="/user/documents" element={<Guard roles={['END_USER']}><Documents/></Guard>}/><Route path="/user/activity" element={<Guard roles={['END_USER']}><Activity/></Guard>}/><Route path="/user/activities" element={<Guard roles={['END_USER']}><Navigate to="/user/visits" replace/></Guard>}/><Route path="/user/notifications" element={<Guard roles={['END_USER']}><UserNotifications/></Guard>}/><Route path="/user/profile" element={<Guard roles={['END_USER']}><Profile/></Guard>}/>
     <Route path="/approvals/dashboard" element={<Guard roles={['DIRECTOR']}><ApprovalDashboard/></Guard>}/><Route path="/approvals" element={<Guard roles={['DIRECTOR']}><ApprovalQueue/></Guard>}/><Route path="/approval-notifications" element={<Guard roles={['DIRECTOR']}><ManagementNotifications/></Guard>}/>
   </Route><Route path="/" element={<HomeRedirect/>}/><Route path="*" element={<Navigate to="/" replace/>}/>
 </Routes></AuthProvider></BrowserRouter>}

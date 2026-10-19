@@ -1,7 +1,8 @@
 import type { ApiError, LoginResponse, MfaSetup, Session } from './types';
-// In local development, let Vite proxy /api to FastAPI so browser requests stay
-// same-origin. Production can set VITE_API_URL when the API uses another host.
-const API = import.meta.env.VITE_API_URL ?? '';
+// Use the current local API directly in development. This prevents requests from
+// being routed to an older API process still listening on the default port.
+// Production can set VITE_API_URL when the API uses another host.
+const API = import.meta.env.DEV ? 'http://127.0.0.1:8002' : (import.meta.env.VITE_API_URL ?? '');
 let getToken: () => string | null = () => null;
 let onExpired: () => void = () => {};
 export function configureApi(token:()=>string|null, expired:()=>void) { getToken=token; onExpired=expired; }

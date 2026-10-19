@@ -11,7 +11,7 @@ const nav:Record<Role,NavItem[]>={
   {to:'/management/audit',label:'Audit Logs'},{to:'/management/notifications',label:'Notifications'}],
  MARKETING:[{to:'/marketing',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'}],
  FINANCE:[{to:'/finance/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/finance/payments',label:'Milestone Payments'}],
- END_USER:[{to:'/user/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/user/job-cards',label:'My Job Cards'},{to:'/user/visits',label:'My Planner'},{to:'/user/activities',label:'Activities'},{to:'/user/mandays',label:'Mandays'},{to:'/user/documents',label:'Documents'},{to:'/user/activity',label:'History'},
+ END_USER:[{to:'/user/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/user/job-cards',label:'My Job Cards'},{to:'/user/visits',label:'Visits & evidence'},{to:'/user/mandays',label:'Mandays'},{to:'/user/documents',label:'Documents'},{to:'/user/activity',label:'History'},
   {to:'/user/notifications',label:'Notifications'},{to:'/user/profile',label:'Profile'}],
  UNIT_REPRESENTATIVE:[{to:'/referrals',label:'Refer a Client'}],
  DIRECTOR:[{to:'/approvals/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/approvals',label:'Approval Queue'},{to:'/approval-notifications',label:'Notifications'}]
