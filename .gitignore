@@ -3,6 +3,7 @@
 .env.*
 !.env.production.example
 !frontend/.env.example
+!backend/.env.example
 *.db
 *.sqlite
 *.sqlite3

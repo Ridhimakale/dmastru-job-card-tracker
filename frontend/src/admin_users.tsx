@@ -3,7 +3,7 @@ import { api } from './api';
 import { Button, Card, Field, Status } from './components';
 import type { User } from './types';
 
-const roles = ['END_USER', 'MARKETING', 'FINANCE', 'MANAGEMENT', 'UNIT_REPRESENTATIVE', 'DIRECTOR', 'ADMIN'] as const;
+const roles = ['END_USER', 'MARKETING', 'FINANCE', 'MANAGEMENT', 'UNIT_REPRESENTATIVE', 'ADMIN'] as const;
 type Department={id:number;code:string;name:string;active:boolean};
 const message = (e: unknown) => e instanceof Error ? e.message : 'Unable to save changes.';
 

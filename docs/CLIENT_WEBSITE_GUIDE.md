@@ -19,7 +19,7 @@ Consultants who have not yet received an account can select **Create an End User
 
 ## Main business flow
 
-1. An Admin creates the MSME/unit and Job Card, then assigns the consultant, Unit Representative, and Director.
+1. An Admin creates the MSME/unit and Job Card, then assigns the consultant and Unit Representative. Management handles the final approval stage.
 2. The Admin defines the Job Card requirement and milestones.
 3. After M1 payment is confirmed, Admin assigns the consultant and any required subject expert, using planner bookings for the milestone period to review availability.
 4. The assigned consultant schedules each visit in My Planner. A consultant can have one planned visit per day; a booked day is unavailable for another visit.
@@ -27,7 +27,7 @@ Consultants who have not yet received an account can select **Create an End User
 6. The consultant creates or uploads required supporting documents against the Job Card or visit.
 7. Documents and workflow records are reviewed by the authorised team.
 8. The Unit Representative records the unit-level decision.
-9. The Director records the final decision. A final approval completes and locks the Job Card.
+9. After consultant confirmation and required closure records, Management records the final decision. Admin then completes closure and generates the certificate.
 
 The system calculates mandays from actual visit duration. With the standard eight-hour manday, six hours and thirty minutes equals **0.8125 manday**.
 
@@ -62,6 +62,7 @@ Management users have a monitoring and reporting view of operations.
 | --- | --- |
 | Dashboard | View KPIs, manday utilisation, project status, and items requiring attention. |
 | Projects | Review all visible Job Cards and filter them by status. |
+| Final Approvals | Review consultant-confirmed Job Cards and record Management’s final approval or rejection. |
 | Reports | Select project, consultant, or milestone reports; export the selected report to CSV or Excel. |
 | Audit Logs | Review recorded operational activity. |
 | Notifications | Read and acknowledge system alerts. |
@@ -85,13 +86,6 @@ Consultants see only the Job Cards assigned to them.
 | Menu | What it is used for |
 | --- | --- |
 | Approval Queue | Open an assigned Job Card and record the Unit Representative decision. A comment is captured with the decision. |
-| Notifications | Read workflow notifications. |
-
-### Director workspace
-
-| Menu | What it is used for |
-| --- | --- |
-| Approval Queue | Open an assigned Job Card and record the Director's final decision. |
 | Notifications | Read workflow notifications. |
 
 ## Key functions
@@ -119,7 +113,7 @@ Consultants can upload Case Studies, Technology Recommendations, Audit documents
 
 ### Approvals
 
-The approval process records decisions against the Job Card. Unit Representatives act at the unit-confirmation stage, while Directors record the final review. The approval history remains available within the Job Card for traceability.
+The approval process records decisions against the Job Card. Unit Representatives act at the unit-confirmation stage, and Management records the final review. The approval history remains available within the Job Card for traceability.
 
 ### Notifications and audit history
 

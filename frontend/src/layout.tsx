@@ -5,18 +5,17 @@ import { useAuth } from './auth';
 import type { Role } from './types';
 type NavItem={to:string;label:string};
 const nav:Record<Role,NavItem[]>={
- ADMIN:[{to:'/admin/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/admin/master-data',label:'Master Data'},{to:'/admin/job-cards',label:'Job Cards'},{to:'/admin/planner',label:'Planner Overview'},{to:'/admin/documents',label:'Document Review'},{to:'/admin/reports',label:'Reports'},
+ ADMIN:[{to:'/admin/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/admin/master-data',label:'Master Data'},{to:'/admin/job-cards',label:'Job Cards'},{to:'/admin/planner',label:'Planner Overview'},{to:'/admin/visit-reviews',label:'Visit Timing Approvals'},{to:'/admin/documents',label:'Document Review'},{to:'/admin/reports',label:'Reports'},
   {to:'/admin/packages',label:'Service Packages'},{to:'/marketing/closure',label:'Project Closure'},{to:'/admin/audit',label:'Audit Log'},{to:'/admin/notifications',label:'Notifications'},{to:'/admin/settings',label:'Settings'}],
- MANAGEMENT:[{to:'/management/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/management/projects',label:'Projects'},{to:'/management/reviews',label:'Milestone Reviews'},{to:'/management/reports?kind=visits',label:'Mandays'},{to:'/management/reports?kind=consultants',label:'Consultant Workload'},{to:'/management/planner',label:'Visit Calendar'},{to:'/marketing/payments',label:'Payments Overview'},{to:'/management/reports',label:'Reports'},
+ MANAGEMENT:[{to:'/management/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/management/projects',label:'Projects'},{to:'/management/reviews',label:'Milestone Reviews'},{to:'/management/approvals',label:'Final Approvals'},{to:'/management/reports?kind=visits',label:'Mandays'},{to:'/management/reports?kind=consultants',label:'Consultant Workload'},{to:'/management/planner',label:'Visit Calendar'},{to:'/marketing/payments',label:'Payments Overview'},{to:'/management/reports',label:'Reports'},
   {to:'/management/audit',label:'Audit Logs'},{to:'/management/notifications',label:'Notifications'}],
  MARKETING:[{to:'/marketing',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'}],
  FINANCE:[{to:'/finance/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/finance/payments',label:'Milestone Payments'}],
  END_USER:[{to:'/user/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/user/job-cards',label:'My Job Cards'},{to:'/user/visits',label:'Visits & evidence'},{to:'/user/mandays',label:'Mandays'},{to:'/user/documents',label:'Documents'},{to:'/user/activity',label:'History'},
   {to:'/user/notifications',label:'Notifications'},{to:'/user/profile',label:'Profile'}],
  UNIT_REPRESENTATIVE:[{to:'/referrals',label:'Refer a Client'}],
- DIRECTOR:[{to:'/approvals/dashboard',label:'Dashboard'},{to:'/referrals',label:'Refer a Client'},{to:'/approvals',label:'Approval Queue'},{to:'/approval-notifications',label:'Notifications'}]
 };
-const roleLabels:Record<Role,string>={ADMIN:'Admin Team',MARKETING:'Marketing Team',FINANCE:'Finance Team',MANAGEMENT:'Management',END_USER:'Consultant',UNIT_REPRESENTATIVE:'Unit Representative',DIRECTOR:'Director'};
+const roleLabels:Record<Role,string>={ADMIN:'Admin Team',MARKETING:'Marketing Team',FINANCE:'Finance Team',MANAGEMENT:'Management',END_USER:'Consultant',UNIT_REPRESENTATIVE:'Unit Representative'};
 export function AppLayout(){
   const {user,loading,logout}=useAuth();
   const [menuOpen,setMenuOpen]=useState(false);

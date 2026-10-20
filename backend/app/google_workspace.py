@@ -139,6 +139,17 @@ def create_file(access: str, name: str, kind: str) -> dict:
         raise HTTPException(502, "Google created a file but returned an invalid response.") from None
 
 
+def write_document_text(access: str, file_id: str, text: str) -> None:
+    """Write generated report text into a Google Doc created by this application."""
+    payload = json.dumps({"requests": [{"insertText": {"location": {"index": 1}, "text": text}}]}).encode()
+    _request(
+        f"https://docs.googleapis.com/v1/documents/{file_id}:batchUpdate",
+        method="POST",
+        data=payload,
+        headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+    )
+
+
 def create_doc_from_upload(access: str, name: str, content: bytes, mime_type: str) -> dict:
     """Import an uploaded Office document as an editable Google Doc."""
     boundary = "codex_" + secrets.token_hex(16)

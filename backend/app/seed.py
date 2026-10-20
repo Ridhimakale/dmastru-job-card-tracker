@@ -17,10 +17,9 @@ DEFAULTS=(
     ("Consultant Demo","consultant@dmastru.local",Role.END_USER,"Consult@123"),
     ("Finance Demo","finance@dmastru.local",Role.FINANCE,"Finance@123"),
     ("Unit Representative Demo","unit.rep@dmastru.local",Role.UNIT_REPRESENTATIVE,"UnitRep@123"),
-    ("Director Demo","director@dmastru.local",Role.DIRECTOR,"Director@123"),
     ("Marketing Demo","marketing@dmastru.local",Role.MARKETING,"Marketing@123"),
 )
-DEPARTMENTS=(("MARKETING","Marketing"),("CONSULTING","Consulting"),("REVIEW","Review"),("UNIT_REPRESENTATIVE","Unit Representative"),("MANAGEMENT","Management"),("DIRECTOR","Director"),("ADMIN","Administration"),("OPERATIONS","Operations"),("FINANCE","Finance"))
+DEPARTMENTS=(("MARKETING","Marketing"),("CONSULTING","Consulting"),("REVIEW","Review"),("UNIT_REPRESENTATIVE","Unit Representative"),("MANAGEMENT","Management"),("ADMIN","Administration"),("OPERATIONS","Operations"),("FINANCE","Finance"))
 ACTIVITY_TYPES=(("CLIENT_MEETING","Client meeting"),("DATA_COLLECTION","Data collection"),("ANALYSIS","Analysis"),("IMPLEMENTATION","Implementation"),("DOCUMENTATION","Documentation"),("OTHER","Other"))
 def seed():
     if ENV == "production":
@@ -94,23 +93,23 @@ def seed_demo_workflow(db):
     admin=db.scalar(select(User).where(User.email=="admin@dmastru.local"))
     consultant=db.scalar(select(User).where(User.email=="consultant@dmastru.local"))
     unit_rep=db.scalar(select(User).where(User.email=="unit.rep@dmastru.local"))
-    director=db.scalar(select(User).where(User.email=="director@dmastru.local"))
-    if not all((admin,consultant,unit_rep,director)): return
+    management=db.scalar(select(User).where(User.email=="management@dmastru.local"))
+    if not all((admin,consultant,unit_rep,management)): return
     existing=db.scalar(select(JobCard).where(JobCard.number=="DEMO-JC-001"))
     if existing:
         demo_m1=db.scalar(select(Milestone).where(Milestone.job_card_id==existing.id,Milestone.code=="M1"))
         ensure_demo_payment(db,existing,None,Decimal("10000.00"),"DEMO-PROJECT")
         if demo_m1: ensure_demo_payment(db,existing,demo_m1,Decimal("5000.00"),"DEMO-M1")
-        seed_demo_scenarios(db,existing,admin,consultant,unit_rep,director)
+        seed_demo_scenarios(db,existing,admin,consultant,unit_rep,management)
         db.commit();return
     msme=db.scalar(select(MSME).where(MSME.msme_code=="DEMO-001"))
     if not msme:
         msme=MSME(name="Demo Manufacturing Ltd",msme_code="DEMO-001",zed_id="ZED-DEMO-001",certificate_level="Bronze",city="Pune",state="Maharashtra",status="ACTIVE")
         db.add(msme);db.flush()
     today=date.today();start=today-timedelta(days=12);end=today+timedelta(days=45)
-    card=JobCard(number="DEMO-JC-001",msme_id=msme.id,location="Pune",project_start_date=start,project_end_date=end,required_md=Decimal("14"),hours_per_manday=Decimal("8"),required_hours=Decimal("112"),director_id=director.id,status="IN_PROGRESS",created_by=admin.id,payment_gate_enabled=True)
+    card=JobCard(number="DEMO-JC-001",msme_id=msme.id,location="Pune",project_start_date=start,project_end_date=end,required_md=Decimal("14"),hours_per_manday=Decimal("8"),required_hours=Decimal("112"),status="IN_PROGRESS",created_by=admin.id,payment_gate_enabled=True)
     db.add(card);db.flush()
-    assignments=[(consultant,"LEAD_CONSULTANT"),(director,"DIRECTOR")]
+    assignments=[(consultant,"LEAD_CONSULTANT")]
     for user,kind in assignments: db.add(Assignment(job_card_id=card.id,user_id=user.id,assignment_type=kind,assigned_by=admin.id))
     milestones=[]
     for code,name,planned in (("M1","Initial Assessment",2),("M2","Implementation Support",2),("M3","Final Review",2)):
@@ -122,18 +121,18 @@ def seed_demo_workflow(db):
         db.add(ClientMilestonePayment(milestone_id=milestones[0].id,external_reference="DEMO-CLIENT-M1",remarks="Development demo: client payment to QCI confirmed.",confirmed_by=admin.id))
     for number,(milestone,work) in enumerate(((milestones[0],"Baseline assessment and site review"),(milestones[0],"Process mapping and action plan"),(milestones[1],"Implementation support"),(milestones[1],"Progress verification")),start=1):
         db.add(Visit(job_card_id=card.id,milestone_id=milestone.id,visit_number=number,visit_date=start+timedelta(days=number),working_minutes=600,work_details=work,rating_code="A",rating_description="Excellent",status="SUBMITTED",created_by=consultant.id))
-    db.flush();seed_demo_scenarios(db,card,admin,consultant,unit_rep,director)
+    db.flush();seed_demo_scenarios(db,card,admin,consultant,unit_rep,management)
     db.commit()
 
-def seed_demo_scenarios(db,active_card,admin,consultant,unit_rep,director):
+def seed_demo_scenarios(db,active_card,admin,consultant,unit_rep,management):
     msme=db.get(MSME,active_card.msme_id);today=date.today();start=today-timedelta(days=50);end=today-timedelta(days=5)
     def assign(card):
-        for user,kind in ((consultant,"LEAD_CONSULTANT"),(director,"DIRECTOR")):
+        for user,kind in ((consultant,"LEAD_CONSULTANT"),):
             if not db.scalar(select(Assignment.id).where(Assignment.job_card_id==card.id,Assignment.user_id==user.id,Assignment.assignment_type==kind,Assignment.active.is_(True))):
                 db.add(Assignment(job_card_id=card.id,user_id=user.id,assignment_type=kind,assigned_by=admin.id))
     waiting=db.scalar(select(JobCard).where(JobCard.project_name=="DEMO-AWAITING-PAYMENT"))
     if not waiting:
-        waiting=JobCard(number=next_business_number(db,"job_card"),msme_id=msme.id,project_name="DEMO-AWAITING-PAYMENT",location=active_card.location,project_start_date=today,project_end_date=today+timedelta(days=60),required_md=Decimal("6"),hours_per_manday=Decimal("8"),required_hours=Decimal("48"),director_id=director.id,status="AWAITING_PAYMENT",created_by=admin.id,payment_gate_enabled=True)
+        waiting=JobCard(number=next_business_number(db,"job_card"),msme_id=msme.id,project_name="DEMO-AWAITING-PAYMENT",location=active_card.location,project_start_date=today,project_end_date=today+timedelta(days=60),required_md=Decimal("6"),hours_per_manday=Decimal("8"),required_hours=Decimal("48"),status="AWAITING_PAYMENT",created_by=admin.id,payment_gate_enabled=True)
         db.add(waiting);db.flush();assign(waiting);db.add(Milestone(job_card_id=waiting.id,code="M1",name="Initial assessment",planned_visits=2,planned_mandays=Decimal("2"),amount=Decimal("3000"),status="LOCKED"))
     completed=db.scalar(select(JobCard).where(JobCard.project_name=="DEMO-COMPLETED"))
     if not completed:
@@ -143,7 +142,7 @@ def seed_demo_scenarios(db,active_card,admin,consultant,unit_rep,director):
         enquiry=Enquiry(number=next_business_number(db,"enquiry"),source_ticket_id=ticket.id,msme_id=msme.id,company_name=msme.name,contact_person=msme.contact_person,email="demo@example.com",phone="+910000000000",industry="Manufacturing",location=active_card.location,requirement="Operational improvement and quality management.",enquiry_date=start,source="DEMO",expected_scope="Assessment, implementation and final review.",assigned_marketing_user_id=marketing.id if marketing else None,status="CONVERTED",created_by=admin.id)
         db.add(enquiry);db.flush();ticket.enquiry_id=enquiry.id
         db.add(EnquiryFollowUp(enquiry_id=enquiry.id,follow_up_date=datetime.combine(start,datetime.min.time(),tzinfo=timezone.utc),follow_up_type="MEETING",person_contacted=msme.contact_person,notes="Initial consultation completed.",responsible_user_id=marketing.id if marketing else admin.id,status="COMPLETED"))
-        completed=JobCard(number=next_business_number(db,"job_card"),source_ticket_id=ticket.id,source_enquiry_id=enquiry.id,msme_id=msme.id,project_name="DEMO-COMPLETED",package_code="GOLD",scope="Assessment, implementation and closure demonstration.",commercial_amount=Decimal("14500"),project_payment_percent=Decimal("30"),location=active_card.location,project_start_date=start,project_end_date=end,required_md=Decimal("4"),hours_per_manday=Decimal("8"),required_hours=Decimal("32"),director_id=director.id,status="COMPLETED",created_by=admin.id,payment_gate_enabled=True)
+        completed=JobCard(number=next_business_number(db,"job_card"),source_ticket_id=ticket.id,source_enquiry_id=enquiry.id,msme_id=msme.id,project_name="DEMO-COMPLETED",package_code="GOLD",scope="Assessment, implementation and closure demonstration.",commercial_amount=Decimal("14500"),project_payment_percent=Decimal("30"),location=active_card.location,project_start_date=start,project_end_date=end,required_md=Decimal("4"),hours_per_manday=Decimal("8"),required_hours=Decimal("32"),status="COMPLETED",created_by=admin.id,payment_gate_enabled=True)
         db.add(completed);db.flush();ticket.job_card_id=completed.id
         db.add(TicketRelationship(ticket_id=ticket.id,related_job_card_id=completed.id,relationship_type="CREATED_FROM",created_by=admin.id));assign(completed)
         project_payment=Payment(invoice_number=next_business_number(db,"invoice"),job_card_id=completed.id,description="Demo project activation",amount_due=Decimal("10000"),amount_paid=Decimal("10000"),currency="INR",status="PAID",invoice_date=start,created_by=admin.id)
@@ -160,7 +159,7 @@ def seed_demo_scenarios(db,active_card,admin,consultant,unit_rep,director):
             for stage,decision,actor,comment in (("CONSULTANT","SUBMITTED",consultant,"Milestone delivered."),("MANAGEMENT","APPROVED",admin,"Management review complete.")):
                 db.add(MilestoneReviewHistory(milestone_id=milestone.id,cycle=1,stage=stage,decision=decision,comment=comment,decided_by=actor.id))
             if activity_type: db.add(JobActivity(job_card_id=completed.id,milestone_id=milestone.id,activity_type_id=activity_type.id,name=f"{code} delivery activity",description=work,assigned_user_id=consultant.id,start_date=start+timedelta(days=index),end_date=start+timedelta(days=index),duration_minutes=60,status="COMPLETED",created_by=consultant.id))
-        for stage,actor in (("CONSULTANT_CONFIRMATION",consultant),("DIRECTOR_REVIEW",director)):
+        for stage,actor in (("CONSULTANT_CONFIRMATION",consultant),("MANAGEMENT_REVIEW",management)):
             db.add(Approval(job_card_id=completed.id,stage=stage,cycle=1,decision="APPROVED",comment="Development demo approval.",decided_by=actor.id))
         closure=ProjectClosure(job_card_id=completed.id,client_confirmation="The demo client confirmed completion.",confirmed_at=datetime.now(timezone.utc),problem="Inconsistent production processes.",requirement="Improve operational consistency.",solution="Standardized process and action plan.",implementation="Assessment, implementation and verification.",benefits="Improved visibility and repeatability.",results="Target process adopted.",feedback_rating=5,feedback="Demo feedback: project objectives achieved.",testimonial="A useful engagement.",publication_permission=False,prepared_by=admin.id,closed_at=datetime.now(timezone.utc))
         closure.certificate_number=next_business_number(db,"certificate")

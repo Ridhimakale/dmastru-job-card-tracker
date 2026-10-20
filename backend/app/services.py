@@ -117,14 +117,14 @@ def milestone_summary(db:Session, milestone:Milestone):
         # Management's decision completes milestone review. Legacy UNIT events are
         # retained for audit history but no longer affect the milestone status.
         decision=stages.get("MANAGEMENT") or latest
-        review_status=("MANAGEMENT_APPROVED" if decision.stage=="MANAGEMENT" and decision.decision=="APPROVED" else decision.decision)
+        review_status=("MANAGEMENT_APPROVED" if decision.stage=="MANAGEMENT" and decision.decision=="APPROVED" else "ADMIN_APPROVED" if decision.stage=="ADMIN" and decision.decision=="APPROVED" else decision.decision)
         review_remarks=decision.comment
     gated=card and card.payment_gate_enabled and payment_status!="PAID"
     if gated: status="LOCKED"
     elif actual<milestone.planned_visits: status="IN_PROGRESS" if actual else ("READY" if card and card.payment_gate_enabled else "NOT_STARTED")
     elif review_status in ("APPROVED","MANAGEMENT_APPROVED"): status="COMPLETED"
     elif review_status in ("RETURNED","REJECTED"): status=review_status
-    elif review_status=="SUBMITTED": status="UNDER_REVIEW"
+    elif review_status in ("SUBMITTED","ADMIN_APPROVED"): status="UNDER_REVIEW"
     else: status="READY_FOR_REVIEW"
     return {"actual_visits":actual,"progress":min(progress,Decimal(100)),"status":status,"payment_status":payment_status,"review_status":review_status,"review_cycle":review_cycle,"review_remarks":review_remarks}
 def card_dashboard_row(db:Session, card:JobCard):

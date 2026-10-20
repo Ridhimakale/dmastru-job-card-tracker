@@ -37,7 +37,7 @@ node .\node_modules\vite\bin\vite.js
 Open `http://127.0.0.1:5173`.
 
 Development accounts: `admin@dmastru.local` / `Admin@123`, `management@dmastru.local` / `Manage@123`, and `consultant@dmastru.local` / `Consult@123`.
-Additional local review accounts: `unit.rep@dmastru.local` / `UnitRep@123` and `director@dmastru.local` / `Director@123`. Development seeding creates a sample MSME, Job Card, assignments, milestones, and visits. Never use these credentials in a deployed environment.
+Additional local review account: `unit.rep@dmastru.local` / `UnitRep@123`. Management handles final approvals. Development seeding creates a sample MSME, Job Card, assignments, milestones, and visits. Never use these credentials in a deployed environment.
 
 ## Database and migrations
 

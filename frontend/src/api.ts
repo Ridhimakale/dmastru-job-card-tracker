@@ -1,8 +1,8 @@
 import type { ApiError, LoginResponse, MfaSetup, Session } from './types';
-// Use the current local API directly in development. This prevents requests from
-// being routed to an older API process still listening on the default port.
+// In development, use Vite's same-origin proxy for /api. This avoids browser
+// CORS failures when the app is opened through localhost or 127.0.0.1.
 // Production can set VITE_API_URL when the API uses another host.
-const API = import.meta.env.DEV ? 'http://127.0.0.1:8002' : (import.meta.env.VITE_API_URL ?? '');
+const API = import.meta.env.VITE_API_URL ?? '';
 let getToken: () => string | null = () => null;
 let onExpired: () => void = () => {};
 export function configureApi(token:()=>string|null, expired:()=>void) { getToken=token; onExpired=expired; }

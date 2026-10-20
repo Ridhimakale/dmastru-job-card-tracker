@@ -475,6 +475,7 @@ class JobActivity(Base):
     activity_type_id: Mapped[int]=mapped_column(ForeignKey("activity_types.id"),index=True)
     name: Mapped[str]=mapped_column(String(200))
     description: Mapped[str]=mapped_column(Text)
+    document_format: Mapped[str]=mapped_column(String(24),default="EITHER",server_default="EITHER")
     assigned_user_id: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     start_date: Mapped[date|None]=mapped_column(Date,nullable=True,index=True)
     end_date: Mapped[date|None]=mapped_column(Date,nullable=True)
@@ -518,6 +519,19 @@ class ZedReferenceDocument(Base):
     active: Mapped[bool]=mapped_column(Boolean,default=True,index=True)
     uploaded_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
     uploaded_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,index=True)
+class VisitActivityTemplate(Base):
+    __tablename__="visit_activity_templates"
+    __table_args__=(UniqueConstraint("service_name","milestone_code","visit_number","position",name="uq_visit_activity_template_position"),Index("ix_visit_activity_template_lookup","service_name","milestone_code","visit_number"))
+    id: Mapped[int]=mapped_column(primary_key=True)
+    service_name: Mapped[str]=mapped_column(String(120),index=True)
+    milestone_code: Mapped[str]=mapped_column(String(24),index=True)
+    visit_number: Mapped[int]=mapped_column(Integer,index=True)
+    position: Mapped[int]=mapped_column(Integer,default=0)
+    activity_name: Mapped[str]=mapped_column(String(200))
+    description: Mapped[str]=mapped_column(Text)
+    document_format: Mapped[str]=mapped_column(String(24),default="EITHER",server_default="EITHER")
+    updated_by: Mapped[int]=mapped_column(ForeignKey("users.id"),index=True)
+    updated_at: Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now,onupdate=now)
 class Visit(Base):
     __tablename__="visits"
     __table_args__=(UniqueConstraint("job_card_id","visit_number",name="uq_visit_number_per_job_card"),)

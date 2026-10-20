@@ -29,13 +29,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .core import AccountStatus, ENV, JWT_SECRET, REFRESH_EXPIRY_DAYS, JWT_EXPIRY_MINUTES, Role, check_password_rules, decode_token, issue_token, passwords
 from .database import SessionLocal, get_db
-from .models import ActivityType, Approval, Assignment, AuditLog, AuthMfaChallenge, AuthSession, BusinessSequence, ClientMilestonePayment, Department, Document, Enquiry, EnquiryDocument, EnquiryFollowUp, EnquiryOnboarding, EnquirySLABreach, GoogleWorkspaceAccount, JobActivity, JobActivityAttachment, JobCard, MasterData, Milestone, MilestoneConsultantAllocation, MilestoneReviewHistory, MSME, Notification, Payment, PaymentReceipt, PlannedVisit, ProjectClosure, RecordDocument, ServicePackage, SystemSetting, Ticket, TicketAttachment, TicketRelationship, User, Visit, VisitReviewHistory, WorkflowAction, WorkflowActionAttachment, WorkflowTemplate, ZedReferenceDocument
-from . import google_workspace
+from .models import ActivityType, Approval, Assignment, AuditLog, AuthMfaChallenge, AuthSession, BusinessSequence, ClientMilestonePayment, Department, Document, Enquiry, EnquiryDocument, EnquiryFollowUp, EnquiryOnboarding, EnquirySLABreach, GoogleWorkspaceAccount, JobActivity, JobActivityAttachment, JobCard, MasterData, Milestone, MilestoneConsultantAllocation, MilestoneReviewHistory, MSME, Notification, Payment, PaymentReceipt, PlannedVisit, ProjectClosure, RecordDocument, ServicePackage, SystemSetting, Ticket, TicketAttachment, TicketRelationship, User, Visit, VisitActivityTemplate, VisitReviewHistory, WorkflowAction, WorkflowActionAttachment, WorkflowTemplate, ZedReferenceDocument
+from . import ai_reports, google_workspace
 from .seed import disable_demo_accounts, ensure_payment_workflows, seed
 from .services import MD_PRECISION, card_dashboard_row, manday_summary, milestone_summary, planner_actual_minutes
 from .storage import MAX_BASE64_CHARS, MAX_BYTES, ROOT as STORAGE_ROOT, save as save_file
@@ -115,7 +115,7 @@ class MasterDataIn(BaseModel): category:str=Field(min_length=2,max_length=64); c
 class MasterDataOut(MasterDataIn): model_config=ConfigDict(from_attributes=True); id:int
 class SettingIn(BaseModel): value:str=Field(min_length=1,max_length=5000)
 class SettingOut(BaseModel): model_config=ConfigDict(from_attributes=True); key:str; value:str
-class JobCardUpdate(BaseModel): model_config=ConfigDict(extra="forbid"); msme_id:int|None=None; location:str|None=Field(default=None,min_length=2,max_length=160); project_start_date:date|None=None; project_end_date:date|None=None; required_md:Decimal|None=Field(default=None,gt=0); hours_per_manday:Decimal|None=Field(default=None,gt=0,le=24); director_id:int|None=None; remarks:str|None=Field(default=None,max_length=10000);status:str|None=Field(default=None,pattern="^(AWAITING_ASSIGNMENT|ASSIGNED|IN_PROGRESS|ON_HOLD|CANCELLED|AWAITING_PAYMENT)$")
+class JobCardUpdate(BaseModel): model_config=ConfigDict(extra="forbid"); msme_id:int|None=None; location:str|None=Field(default=None,min_length=2,max_length=160); project_start_date:date|None=None; project_end_date:date|None=None; required_md:Decimal|None=Field(default=None,gt=0); hours_per_manday:Decimal|None=Field(default=None,gt=0,le=24); remarks:str|None=Field(default=None,max_length=10000);status:str|None=Field(default=None,pattern="^(AWAITING_ASSIGNMENT|ASSIGNED|IN_PROGRESS|ON_HOLD|CANCELLED|AWAITING_PAYMENT)$")
 class ReassignmentIn(BaseModel):
     user_id:int;assignment_type:str=Field(pattern="^(LEAD_CONSULTANT|CO_CONSULTANT|SUBJECT_EXPERT)$");reason:str=Field(min_length=3,max_length=5000);allocation_start_date:date|None=None;allocation_end_date:date|None=None
     @model_validator(mode="after")
@@ -133,7 +133,7 @@ class MSMEOut(MSMECreate):
     id:int; status:str
 class JobCardCreate(BaseModel):
     model_config=ConfigDict(extra="forbid")
-    msme_id:int; location:str=Field(min_length=2,max_length=160); project_start_date:date; project_end_date:date; required_md:Decimal|None=Field(default=None,gt=0); hours_per_manday:Decimal|None=Field(default=None,gt=0,le=24); lead_consultant_id:int|None=None; co_consultant_id:int|None=None; subject_expert_id:int|None=None; director_id:int|None=None;remarks:str|None=Field(default=None,max_length=10000)
+    msme_id:int; location:str=Field(min_length=2,max_length=160); project_start_date:date; project_end_date:date; required_md:Decimal|None=Field(default=None,gt=0); hours_per_manday:Decimal|None=Field(default=None,gt=0,le=24); lead_consultant_id:int|None=None; co_consultant_id:int|None=None; subject_expert_id:int|None=None;remarks:str|None=Field(default=None,max_length=10000)
     source_enquiry_id:UUID|None=None;project_name:str|None=Field(default=None,max_length=200);service_name:str|None=Field(default=None,max_length=250);package_code:str|None=Field(default=None,max_length=64);scope:str|None=Field(default=None,max_length=10000)
 class PackageMilestoneConfig(BaseModel):
     code:str=Field(min_length=1,max_length=24);name:str=Field(min_length=2,max_length=120);planned_visits:int=Field(ge=1);planned_mandays:Decimal=Field(gt=0);amount:Decimal=Field(gt=0);payment_percent:Decimal=Field(gt=0,le=100);activities:list[str]=Field(default_factory=list)
@@ -179,7 +179,7 @@ class WorkflowAttachmentOut(BaseModel):
     id:int;action_id:UUID;file_name:str;file_size:int;mime_type:str;uploaded_by:int;uploaded_at:datetime
 class JobCardOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
-    id:int; number:str; source_ticket_id:UUID|None=None;source_enquiry_id:UUID|None=None;project_name:str|None=None;service_name:str|None=None;package_code:str|None=None;scope:str|None=None;msme_id:int; location:str; project_start_date:date; project_end_date:date; required_md:Decimal; hours_per_manday:Decimal=Decimal(8); required_hours:Decimal; unit_representative_id:int|None=None; director_id:int|None=None;remarks:str|None=None;status:str; payment_gate_enabled:bool=False
+    id:int; number:str; source_ticket_id:UUID|None=None;source_enquiry_id:UUID|None=None;project_name:str|None=None;service_name:str|None=None;package_code:str|None=None;scope:str|None=None;msme_id:int; location:str; project_start_date:date; project_end_date:date; required_md:Decimal; hours_per_manday:Decimal=Decimal(8); required_hours:Decimal; unit_representative_id:int|None=None;remarks:str|None=None;status:str; payment_gate_enabled:bool=False
     @field_serializer("required_hours")
     def serialize_required_hours(self,value:Decimal)->Decimal: return value.quantize(Decimal("0.01"))
 class JobCardListOut(JobCardOut): completed_md:Decimal=Decimal(0); remaining_md:Decimal=Decimal(0); progress:Decimal=Decimal(0); overrun:bool=False
@@ -197,6 +197,10 @@ class MilestoneReviewOut(BaseModel):
     id:int;milestone_id:int;cycle:int;stage:str;decision:str;comment:str|None=None;decided_by:int;created_at:datetime
 class ActivityTypeUpsert(BaseModel):
     code:str=Field(min_length=2,max_length=48,pattern="^[A-Z][A-Z0-9_]*$");name:str=Field(min_length=2,max_length=120);active:bool=True
+class VisitActivityTemplateItem(BaseModel):
+    activity_name:str=Field(min_length=2,max_length=200);description:str=Field(min_length=3,max_length=10000);document_format:str=Field(default="EITHER",pattern="^(DOCUMENT|SHEET|EITHER)$")
+class VisitActivityTemplateSet(BaseModel):
+    activities:list[VisitActivityTemplateItem]=Field(min_length=1,max_length=100)
 class ActivityTypeOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
     id:int;code:str;name:str;active:bool
@@ -212,7 +216,7 @@ class JobActivityCreate(BaseModel):
 class JobActivityUpdate(BaseModel):
     status:str|None=Field(default=None,pattern="^(PLANNED|IN_PROGRESS|COMPLETED|CANCELLED)$");remarks:str|None=Field(default=None,max_length=10000);duration_minutes:int|None=Field(default=None,ge=0,le=100000);start_date:date|None=None;end_date:date|None=None;expected_completion_date:date|None=None
 class JobActivityOut(BaseModel):
-    id:int;job_card_id:int;milestone_id:int;visit_id:int|None;visit_number:int|None=None;planned_visit_id:int|None=None;activity_type_id:int;activity_type_code:str;activity_type_name:str;name:str;description:str;assigned_user_id:int;assigned_user_name:str;start_date:date|None;end_date:date|None;expected_completion_date:date|None=None;sla_due_at:datetime|None=None;duration_minutes:int;mandays:Decimal;status:str;review_status:str="NOT_SUBMITTED";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None;remarks:str|None;created_by:int;created_at:datetime;reference_documents:list[dict]=Field(default_factory=list)
+    id:int;job_card_id:int;milestone_id:int;visit_id:int|None;visit_number:int|None=None;planned_visit_id:int|None=None;activity_type_id:int;activity_type_code:str;activity_type_name:str;name:str;description:str;document_format:str="EITHER";assigned_user_id:int;assigned_user_name:str;start_date:date|None;end_date:date|None;expected_completion_date:date|None=None;sla_due_at:datetime|None=None;duration_minutes:int;mandays:Decimal;status:str;review_status:str="NOT_SUBMITTED";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None;remarks:str|None;created_by:int;created_at:datetime;reference_documents:list[dict]=Field(default_factory=list)
 class JobActivityAttachmentOut(BaseModel):
     model_config=ConfigDict(from_attributes=True)
     id:int;activity_id:int;file_name:str;file_size:int;mime_type:str;uploaded_by:int;uploaded_at:datetime;status:str="DRAFT";review_remarks:str|None=None;reviewed_by:int|None=None;reviewed_at:datetime|None=None
@@ -221,7 +225,7 @@ class ActivityAttachmentReviewIn(BaseModel):
 class VisitCreate(BaseModel):
     planned_visit_id:int|None=None;milestone_id:int;visit_date:date;hours:int=Field(default=0,ge=0);minutes:int=Field(default=0,ge=0,lt=60)
     start_time:TimeOfDay|None=None;end_time:TimeOfDay|None=None;location:str|None=Field(default=None,max_length=240);findings:str|None=Field(default=None,max_length=10000)
-    work_details:str=Field(min_length=3,max_length=10000);rating_code:str=Field(pattern="^[ABCDE]$");consultant_id:int|None=None;co_consultant_id:int|None=None;subject_expert_id:int|None=None;remarks:str|None=None;attachment_name:str|None=None;attachment_mime_type:str|None=None;attachment_base64:str|None=None
+    work_details:str=Field(default="Attendance time recorded.",min_length=3,max_length=10000);rating_code:str=Field(default="A",pattern="^[ABCDE]$");consultant_id:int|None=None;co_consultant_id:int|None=None;subject_expert_id:int|None=None;remarks:str|None=None;attachment_name:str|None=None;attachment_mime_type:str|None=None;attachment_base64:str|None=None
     @field_validator("end_time")
     @classmethod
     def visit_times_ordered(cls,value,info):
@@ -270,6 +274,7 @@ class GoogleWorkProductCreate(BaseModel):
     kind:str=Field(pattern="^(DOCUMENT|SHEET)$")
     title:str=Field(min_length=2,max_length=120)
     activity_id:int|None=None
+    milestone_id:int|None=None
 class GoogleReferenceWorkProductCreate(BaseModel):
     title:str=Field(min_length=2,max_length=120)
     reference_document_id:int
@@ -686,12 +691,12 @@ def _milestone_out_for_user(db:Session,milestone:Milestone,user:User):
     invoice=db.scalar(select(Payment).where(Payment.milestone_id==milestone.id).order_by(Payment.id.desc()).limit(1))
     next_code={"M1":"M2","M2":"M3"}.get(milestone.code)
     next_milestone=db.scalar(select(Milestone).where(Milestone.job_card_id==milestone.job_card_id,Milestone.code==next_code)) if next_code else None
-    next_paid=bool(next_milestone and db.scalar(select(ClientMilestonePayment.id).where(ClientMilestonePayment.milestone_id==next_milestone.id)))
+    next_completed=bool(next_milestone and milestone_summary(db,next_milestone)["status"]=="COMPLETED")
     invoice_data=_payment_out(invoice) if invoice else None
     values.update(client_payment_confirmed_at=client_payment.confirmed_at if client_payment else None,
         invoice_status=invoice_data["status"] if invoice_data else None,invoice_number=invoice.invoice_number if invoice else None,
         invoice_amount=invoice.amount_due if invoice else None,invoice_due_date=invoice.due_date if invoice else None,
-        invoice_ready=milestone_summary(db,milestone)["status"]=="COMPLETED" and (next_paid or next_milestone is None) and (not invoice or invoice.status=="CANCELLED"))
+        invoice_ready=milestone_summary(db,milestone)["status"]=="COMPLETED" and (next_completed or next_milestone is None) and (not invoice or invoice.status=="CANCELLED"))
     if not db.get(JobCard,milestone.job_card_id).payment_gate_enabled:
         values["payment_status"]="NOT_REQUIRED"
         values["invoice_ready"]=False
@@ -772,8 +777,8 @@ def create_payment_invoice(card_id:int,data:PaymentCreate,db:DB,user:Annotated[U
         if milestone_summary(db,milestone)["status"]!="COMPLETED": raise HTTPException(409,"D'Mastru can invoice QCI only for a completed milestone.")
         next_code={"M1":"M2","M2":"M3"}.get(milestone.code)
         next_milestone=db.scalar(select(Milestone).where(Milestone.job_card_id==card.id,Milestone.code==next_code)) if next_code else None
-        if next_milestone and not db.scalar(select(ClientMilestonePayment.id).where(ClientMilestonePayment.milestone_id==next_milestone.id)):
-            raise HTTPException(409,f"The client's {next_code} payment to QCI must be confirmed before raising D'Mastru's invoice to QCI for {milestone.code}.")
+        if next_milestone and milestone_summary(db,next_milestone)["status"]!="COMPLETED":
+            raise HTTPException(409,f"{next_code} must be completed before raising D'Mastru's invoice to QCI for {milestone.code}.")
     else: milestone=None
     if card.payment_gate_enabled and milestone is None:
         raise HTTPException(422,"Only milestone payment invoices are supported for Job Cards.")
@@ -958,17 +963,15 @@ def global_search(db:DB,user:Annotated[User,Depends(current_user)],q:str=Query(m
     if user.role in (Role.MARKETING,Role.FINANCE): cards=cards.where(JobCard.id<0)
     if user.role==Role.END_USER: cards=cards.join(Assignment,Assignment.job_card_id==JobCard.id).where(Assignment.user_id==user.id,Assignment.active.is_(True))
     elif user.role==Role.UNIT_REPRESENTATIVE: cards=cards.where(JobCard.id<0)
-    elif user.role==Role.DIRECTOR: cards=cards.where(JobCard.director_id==user.id,JobCard.status=="PENDING_APPROVAL")
     for card,msme in db.execute(cards.order_by(JobCard.created_at.desc()).limit(5)):
-        href="/admin/job-cards" if user.role==Role.ADMIN else ("/management/projects" if user.role==Role.MANAGEMENT else ("/approvals" if user.role==Role.DIRECTOR else "/user/job-cards"))
+        href="/admin/job-cards" if user.role==Role.ADMIN else ("/management/projects" if user.role==Role.MANAGEMENT else "/user/job-cards")
         add("Job Card",card.id,f"{card.number} · {msme.name}",card.location,card.status,href)
     milestones=select(Milestone,JobCard).join(JobCard,JobCard.id==Milestone.job_card_id).where(JobCard.deleted_at.is_(None),or_(Milestone.code.ilike(term),Milestone.name.ilike(term)))
     if user.role in (Role.MARKETING,Role.FINANCE): milestones=milestones.where(Milestone.id<0)
     if user.role==Role.END_USER: milestones=milestones.join(Assignment,Assignment.job_card_id==JobCard.id).where(Assignment.user_id==user.id,Assignment.active.is_(True))
     elif user.role==Role.UNIT_REPRESENTATIVE: milestones=milestones.where(Milestone.id<0)
-    elif user.role==Role.DIRECTOR: milestones=milestones.where(JobCard.director_id==user.id,JobCard.status=="PENDING_APPROVAL")
     for row,card in db.execute(milestones.order_by(Milestone.id.desc()).limit(5)):
-        href="/admin/job-cards" if user.role==Role.ADMIN else ("/management/projects" if user.role==Role.MANAGEMENT else ("/approvals" if user.role==Role.DIRECTOR else "/user/job-cards"))
+        href="/admin/job-cards" if user.role==Role.ADMIN else ("/management/projects" if user.role==Role.MANAGEMENT else "/user/job-cards")
         add("Milestone",row.id,f"{card.number} · {row.code} · {row.name}","Project milestone",row.status,href)
     if user.role in (Role.ADMIN,Role.MANAGEMENT,Role.MARKETING):
         enquiries=select(Enquiry).where(or_(Enquiry.number.ilike(term),Enquiry.company_name.ilike(term),Enquiry.contact_person.ilike(term)))
@@ -2214,12 +2217,11 @@ def create_job_card(data:JobCardCreate,db:DB,admin:Annotated[User,Depends(requir
         if user_id:
             if user_id in seen: raise HTTPException(422,"A consultant cannot occupy more than one role on a Job Card.")
             seen.add(user_id); active_consultant(db,user_id)
-    if data.director_id: active_reviewer(db,data.director_id,Role.DIRECTOR)
     hours_per_manday=data.hours_per_manday or default_hours_per_manday(db)
     service_name=(data.service_name or onboarding.service_name) if onboarding else data.service_name
     zed_plan=any(name.strip().casefold() in ("zed silver","zed gold") for name in (service_name or "").split(","))
     project_name=onboarding.project_name if onboarding else next_business_number(db,"project")
-    card=JobCard(number=next_business_number(db,"job_card"),source_enquiry_id=source_enquiry.id if source_enquiry else None,project_name=project_name,service_name=service_name,package_code=package.code if package else data.package_code,scope=(onboarding.scope if onboarding else package_scope),commercial_amount=(Decimal(str(onboarding.commercial_amount)) if onboarding and onboarding.commercial_amount is not None else (package.commercial_amount if package else None)),project_payment_percent=package.project_payment_percent if package else None,msme_id=data.msme_id,location=(onboarding.location if onboarding else data.location),project_start_date=data.project_start_date,project_end_date=data.project_end_date,required_md=required_md,hours_per_manday=hours_per_manday,required_hours=required_md*hours_per_manday,director_id=data.director_id,remarks=data.remarks,created_by=admin.id,payment_gate_enabled=True,status="AWAITING_PAYMENT")
+    card=JobCard(number=next_business_number(db,"job_card"),source_enquiry_id=source_enquiry.id if source_enquiry else None,project_name=project_name,service_name=service_name,package_code=package.code if package else data.package_code,scope=(onboarding.scope if onboarding else package_scope),commercial_amount=(Decimal(str(onboarding.commercial_amount)) if onboarding and onboarding.commercial_amount is not None else (package.commercial_amount if package else None)),project_payment_percent=package.project_payment_percent if package else None,msme_id=data.msme_id,location=(onboarding.location if onboarding else data.location),project_start_date=data.project_start_date,project_end_date=data.project_end_date,required_md=required_md,hours_per_manday=hours_per_manday,required_hours=required_md*hours_per_manday,remarks=data.remarks,created_by=admin.id,payment_gate_enabled=True,status="AWAITING_PAYMENT")
     db.add(card)
     try: db.flush()
     except IntegrityError:
@@ -2242,9 +2244,6 @@ def create_job_card(data:JobCardCreate,db:DB,admin:Annotated[User,Depends(requir
     for user_id,kind in ids:
         if user_id:
             db.add(Assignment(job_card_id=card.id,user_id=user_id,assignment_type=kind,assigned_by=admin.id,allocation_start_date=card.project_start_date,allocation_end_date=card.project_end_date)); notify(db,user_id,f"You were assigned as {kind.replace('_',' ').title()} on Job Card {card.number}.",f"/job-cards/{card.id}")
-    for user_id,kind in ((data.director_id,"DIRECTOR"),):
-        if user_id:
-            db.add(Assignment(job_card_id=card.id,user_id=user_id,assignment_type=kind,assigned_by=admin.id));notify(db,user_id,f"You were assigned as {kind.replace('_',' ').title()} on Job Card {card.number}.",f"/job-cards/{card.id}")
     if onboarding:
         onboarding.status="JOB_CARD_CREATED";onboarding.job_card_id=card.id
     db.flush()
@@ -2263,7 +2262,6 @@ def list_job_cards(db:DB,user:Annotated[User,Depends(current_user)],status_filte
     query=select(JobCard).where(JobCard.deleted_at==None)
     if user.role==Role.END_USER: query=query.join(Assignment,Assignment.job_card_id==JobCard.id).where(Assignment.user_id==user.id,Assignment.active==True)
     elif user.role==Role.UNIT_REPRESENTATIVE: query=query.where(JobCard.id<0)
-    elif user.role==Role.DIRECTOR: query=query.where(JobCard.director_id==user.id,JobCard.status=="PENDING_APPROVAL")
     elif consultant_id: query=query.join(Assignment,Assignment.job_card_id==JobCard.id).where(Assignment.user_id==consultant_id,Assignment.active==True)
     if status_filter:
         if user.role==Role.ADMIN and status_filter in {"AWAITING_PAYMENT","LOCKED","INVOICE_RAISED","PARTIALLY_PAID","PAID","OVERDUE","PAYMENT_PENDING"}: raise HTTPException(403,"Payment status is not available to System Admin.")
@@ -2278,18 +2276,10 @@ def list_job_cards(db:DB,user:Annotated[User,Depends(current_user)],status_filte
         if search: query=query.where((JobCard.number.ilike(f"%{search}%"))|(MSME.name.ilike(f"%{search}%"))|(MSME.zed_id.ilike(f"%{search}%"))|(JobCard.location.ilike(f"%{search}%")))
     if location: query=query.where(JobCard.location.ilike(f"%{location}%"))
     query=query.order_by(JobCard.created_at.desc())
-    if delayed is None and overrun is None and user.role not in (Role.UNIT_REPRESENTATIVE,Role.DIRECTOR):
+    if delayed is None and overrun is None and user.role!=Role.UNIT_REPRESENTATIVE:
         cards=list(db.scalars(query.offset((page-1)*page_size).limit(page_size)))
         return [JobCardListOut(**{**_job_card_out_for_user(card,user).model_dump(),**manday_summary(db,card)}) for card in cards]
     cards=list(db.scalars(query))
-    if user.role==Role.DIRECTOR:
-        ready=[]
-        for card in cards:
-            latest=int(db.scalar(select(func.coalesce(func.max(Approval.cycle),0)).where(Approval.job_card_id==card.id)) or 1)
-            consultant_approved=db.scalar(select(Approval.id).where(Approval.job_card_id==card.id,Approval.cycle==latest,Approval.stage=="CONSULTANT_CONFIRMATION",Approval.decision=="APPROVED"))
-            director_done=db.scalar(select(Approval.id).where(Approval.job_card_id==card.id,Approval.cycle==latest,Approval.stage=="DIRECTOR_REVIEW"))
-            if consultant_approved and not director_done: ready.append(card)
-        cards=ready
     if delayed is not None or overrun is not None:
         cards=[card for card in cards if (delayed is None or (card_dashboard_row(db,card)["status"]=="DELAYED")==delayed) and (overrun is None or card_dashboard_row(db,card)["overrun"]==overrun)]
     return [JobCardListOut(**{**_job_card_out_for_user(card,user).model_dump(),**manday_summary(db,card)}) for card in cards[(page-1)*page_size:page*page_size]]
@@ -2345,7 +2335,6 @@ def get_job_card_workspace(card_id:int,db:DB,user:Annotated[User,Depends(current
         attachments_by_activity.setdefault(attachment.activity_id,[]).append(JobActivityAttachmentOut.model_validate(attachment).model_dump(mode="json"))
     for activity in activity_rows: activity["attachments"]=attachments_by_activity.get(activity["id"],[])
     team_rows=[{"user_id":allocation.consultant_id,"full_name":(db.get(User,allocation.consultant_id).full_name if db.get(User,allocation.consultant_id) else ""),"assignment_type":"MILESTONE_CONSULTANT","milestone_code":milestone.code,"allocated_mandays":str(allocation.allocated_mandays)} for milestone in milestones for allocation in _milestone_allocations(db,milestone) if db.get(User,allocation.consultant_id)]
-    team_rows.extend({"user_id":u.id,"full_name":u.full_name,"assignment_type":a.assignment_type,"milestone_code":None} for a,u in assignments if a.assignment_type=="DIRECTOR")
     return {"job_card":_job_card_out_for_user(card,user).model_dump(mode="json"),"client":MSMEOut.model_validate(msme).model_dump(mode="json"),"source_ticket":source_ticket_row,"source_enquiry":enquiry_row,"related_tickets":ticket_rows,"team":team_rows,"mandays":manday_summary(db,card),"milestones":milestone_rows,"activities":activity_rows,"visits":[VisitOut.model_validate(row).model_dump(mode="json") for row in visits],"planned_visits":planned_visit_rows,"documents":[DocumentOut.model_validate(row).model_dump(mode="json") for row in documents],"record_documents":[RecordDocumentOut.model_validate(row).model_dump(mode="json") for row in record_documents],"payments":[_payment_out(row) for row in payments],"actions":[_workflow_out(db,row).model_dump(mode="json") for row in actions],"approvals":[ApprovalOut.model_validate(row).model_dump(mode="json") for row in approvals],"closure":ClosureOut.model_validate(closure).model_dump(mode="json") if closure else None,"history":[AuditOut.model_validate(row).model_dump(mode="json") for row in audit_rows]}
 
 @app.get("/api/job-cards/{card_id}/assignments")
@@ -2361,10 +2350,11 @@ def create_consultant_visit_report(planned_visit_id:int,data:ConsultantVisitRepo
     card=mutable_card(assigned_card(db,user,planned.job_card_id))
     if user.id not in {planned.consultant_id,planned.co_consultant_id,planned.subject_expert_id}: raise HTTPException(403,"Only a consultant assigned to this visit can submit its report.")
     milestone=db.get(Milestone,planned.milestone_id)
+    if milestone and milestone.code.upper()=="M1": raise HTTPException(409,"M1 uses one final report for the milestone. Submit it from the M1 final report section.")
     _require_work_payment(db,card,milestone)
     visit=db.scalar(select(Visit).where(Visit.planned_visit_id==planned.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))))
     if not visit: raise HTTPException(409,"Submit the visit report before creating the milestone report.")
-    tasks=list(db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned.id)))
+    tasks=list(db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned.id,JobActivity.status!="CANCELLED")))
     if not tasks or not visit_deliverables_complete(db,milestone,planned.id):
         raise HTTPException(409,"Every required visit activity and its evidence must be completed, submitted, and approved by Admin before submitting the visit report.")
     active=db.scalar(select(RecordDocument.id).where(RecordDocument.visit_id==visit.id,RecordDocument.document_type=="Consultant Visit Report",RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED"))).order_by(RecordDocument.version.desc()).limit(1))
@@ -2448,7 +2438,7 @@ def _job_activity_out(db:Session,row:JobActivity)->JobActivityOut:
         industry=(msme.industry or "").strip().casefold() if msme else ""
         specific=[ref for ref in candidates if ref.industry and ref.industry.strip().casefold()==industry]
         refs=[specific[0]] if specific else [ref for ref in candidates if not ref.industry][:1]
-    return JobActivityOut(id=row.id,job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=row.visit_id,visit_number=activity_visit,planned_visit_id=row.planned_visit_id,activity_type_id=row.activity_type_id,activity_type_code=kind.code if kind else "",activity_type_name=kind.name if kind else "",name=row.name,description=row.description,assigned_user_id=row.assigned_user_id,assigned_user_name=assignee.full_name if assignee else "",start_date=row.start_date,end_date=row.end_date,expected_completion_date=row.expected_completion_date,sla_due_at=sla_due,duration_minutes=row.duration_minutes,mandays=mandays,status=row.status,review_status=row.review_status,review_remarks=row.review_remarks,reviewed_by=row.reviewed_by,reviewed_at=row.reviewed_at,remarks=row.remarks,created_by=row.created_by,created_at=row.created_at,reference_documents=[{"id":ref.id,"industry":ref.industry,"milestone_code":ref.milestone_code,"visit_number":ref.visit_number,"activity_name":ref.activity_name,"file_name":ref.file_name,"file_size":ref.file_size,"mime_type":ref.mime_type} for ref in refs])
+    return JobActivityOut(id=row.id,job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=row.visit_id,visit_number=activity_visit,planned_visit_id=row.planned_visit_id,activity_type_id=row.activity_type_id,activity_type_code=kind.code if kind else "",activity_type_name=kind.name if kind else "",name=row.name,description=row.description,document_format=row.document_format or "EITHER",assigned_user_id=row.assigned_user_id,assigned_user_name=assignee.full_name if assignee else "",start_date=row.start_date,end_date=row.end_date,expected_completion_date=row.expected_completion_date,sla_due_at=sla_due,duration_minutes=row.duration_minutes,mandays=mandays,status=row.status,review_status=row.review_status,review_remarks=row.review_remarks,reviewed_by=row.reviewed_by,reviewed_at=row.reviewed_at,remarks=row.remarks,created_by=row.created_by,created_at=row.created_at,reference_documents=[{"id":ref.id,"industry":ref.industry,"milestone_code":ref.milestone_code,"visit_number":ref.visit_number,"activity_name":ref.activity_name,"file_name":ref.file_name,"file_size":ref.file_size,"mime_type":ref.mime_type} for ref in refs])
 
 def _activity_record_documents(db:Session,row:JobActivity)->list[RecordDocument]:
     legacy_type_pattern=f"%Activity-{row.id}\\_%"
@@ -2490,6 +2480,29 @@ def list_job_activities(card_id:int,db:DB,user:Annotated[User,Depends(current_us
 def list_zed_m1_references(db:DB,user:Annotated[User,Depends(current_user)]):
     rows=list(db.scalars(select(ZedReferenceDocument).where(ZedReferenceDocument.active.is_(True)).order_by(ZedReferenceDocument.visit_number,ZedReferenceDocument.activity_name,ZedReferenceDocument.uploaded_at.desc())))
     return [{"id":r.id,"industry":r.industry,"milestone_code":r.milestone_code,"visit_number":r.visit_number,"activity_name":r.activity_name,"file_name":r.file_name,"file_size":r.file_size,"mime_type":r.mime_type,"uploaded_at":r.uploaded_at} for r in rows]
+
+@app.get("/api/admin/visit-activity-templates")
+def list_visit_activity_templates(db:DB,admin:Annotated[User,Depends(require(Role.ADMIN))]):
+    rows=db.execute(select(VisitActivityTemplate,User.full_name).join(User,User.id==VisitActivityTemplate.updated_by).order_by(VisitActivityTemplate.service_name,VisitActivityTemplate.milestone_code,VisitActivityTemplate.visit_number,VisitActivityTemplate.position)).all()
+    return [{"id":row.id,"service_name":row.service_name,"milestone_code":row.milestone_code,"visit_number":row.visit_number,"position":row.position,"activity_name":row.activity_name,"description":row.description,"document_format":row.document_format,"updated_by_name":updated_by_name} for row,updated_by_name in rows]
+
+@app.put("/api/admin/visit-activity-templates/{service_name}/{milestone_code}/{visit_number}")
+def save_visit_activity_templates(service_name:str,milestone_code:str,visit_number:int,data:VisitActivityTemplateSet,db:DB,admin:Annotated[User,Depends(require(Role.ADMIN))]):
+    service=normalize_activity_template_service(service_name)
+    if not service:raise HTTPException(422,"Select a service.")
+    if milestone_code.upper() not in ("M1","M2","M3"):raise HTTPException(422,"Milestone must be M1, M2, or M3.")
+    if visit_number<1 or visit_number>20:raise HTTPException(422,"Visit number must be between 1 and 20.")
+    normalized_names=[" ".join(item.activity_name.split()).casefold() for item in data.activities]
+    if len(normalized_names)!=len(set(normalized_names)):raise HTTPException(422,"Activity names must be unique within this visit.")
+    if any(len(item.activity_name.strip())<2 or len(item.description.strip())<3 for item in data.activities):raise HTTPException(422,"Each activity needs a name and instructions.")
+    db.execute(delete(VisitActivityTemplate).where(VisitActivityTemplate.service_name==service,VisitActivityTemplate.milestone_code==milestone_code.upper(),VisitActivityTemplate.visit_number==visit_number));db.flush()
+    rows=[]
+    for position,item in enumerate(data.activities,1):
+        row=VisitActivityTemplate(service_name=service,milestone_code=milestone_code.upper(),visit_number=visit_number,position=position,activity_name=" ".join(item.activity_name.split()),description=item.description.strip(),document_format=item.document_format,updated_by=admin.id)
+        db.add(row);rows.append(row)
+    audit(db,admin.id,"VISIT_ACTIVITY_TEMPLATE_UPDATED","VISIT_ACTIVITY_TEMPLATE",None,f"{service} {milestone_code.upper()} Visit {visit_number}; {len(rows)} activities")
+    db.commit()
+    return [{"id":row.id,"service_name":row.service_name,"milestone_code":row.milestone_code,"visit_number":row.visit_number,"position":row.position,"activity_name":row.activity_name,"description":row.description,"document_format":row.document_format,"updated_by_name":admin.full_name} for row in rows]
 
 @app.post("/api/zed-m1/references",status_code=201)
 def upload_zed_m1_reference(data:RecordFileUpload,industry:Annotated[str,Query(min_length=2,max_length=120)],milestone_code:Annotated[str,Query(pattern="^M[123]$")],visit_number:Annotated[int,Query(ge=1,le=20)],activity_name:Annotated[str,Query(min_length=2,max_length=240)],db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
@@ -2582,7 +2595,7 @@ def update_job_activity(activity_id:int,data:JobActivityUpdate,db:DB,user:Annota
             planned=db.get(PlannedVisit,row.planned_visit_id)
             milestone=db.get(Milestone,row.milestone_id)
             submitted_visit=db.scalar(select(Visit.id).where(Visit.planned_visit_id==planned.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))).limit(1)) if planned else None
-            if planned and milestone and submitted_visit and milestone_visit_deliverables(milestone,planned.visit_number,card) and visit_deliverables_complete(db,milestone,planned.id):
+            if planned and milestone and submitted_visit and milestone_visit_deliverables(milestone,planned.visit_number,card,db) and visit_deliverables_complete(db,milestone,planned.id):
                 planned.status="COMPLETED"
                 planned.outcome=planned.outcome or "Visit report submitted and all configured milestone tasks completed."
                 audit(db,user.id,"VISIT_TASKS_COMPLETED","PLANNED_VISIT",planned.id,f"All required tasks completed for visit plan {planned.id}.")
@@ -2716,7 +2729,6 @@ def update_job_card(card_id:int,data:JobCardUpdate,db:DB,admin:Annotated[User,De
         msme=db.get(MSME,updates["msme_id"])
         if not msme or msme.deleted_at or msme.status!="ACTIVE": raise HTTPException(422,"Selected MSME is not active.")
     if updates.get("unit_representative_id") is not None: raise HTTPException(422,"Unit Representative assignment is no longer part of the Job Card workflow.")
-    if "director_id" in updates and updates["director_id"]!=card.director_id: active_reviewer(db,updates["director_id"],Role.DIRECTOR)
     if "number" in updates and db.scalar(select(JobCard).where(JobCard.number==updates["number"],JobCard.id!=card_id)): raise HTTPException(409,"Job Card number already exists.")
     if "required_md" in updates or "hours_per_manday" in updates:
         required_md=updates.get("required_md",Decimal(str(card.required_md)))
@@ -2727,11 +2739,6 @@ def update_job_card(card_id:int,data:JobCardUpdate,db:DB,admin:Annotated[User,De
         previous=getattr(card,field)
         if previous!=value:
             setattr(card,field,value); changes.append(f"{field}:{previous}->{value}")
-            role_type={"director_id":"DIRECTOR"}.get(field)
-            if role_type:
-                for assignment in db.scalars(select(Assignment).where(Assignment.job_card_id==card_id,Assignment.assignment_type==role_type,Assignment.active==True)):
-                    assignment.active=False;assignment.ended_at=datetime.now(timezone.utc)
-                db.add(Assignment(job_card_id=card.id,user_id=value,assignment_type=role_type,assigned_by=admin.id));notify(db,value,f"You were assigned as {role_type.replace('_',' ').title()} on Job Card {card.number}.",f"/job-cards/{card.id}")
     if changes: audit(db,admin.id,"JOB_CARD_UPDATED","JOB_CARD",card.id,"; ".join(changes))
     db.commit(); db.refresh(card); return card
 @app.post("/api/job-cards/{card_id}/reassign",response_model=JobCardOut)
@@ -2756,7 +2763,6 @@ def assigned_card(db:Session, user:User, card_id:int):
     card=db.get(JobCard,card_id)
     if not card or card.deleted_at: raise HTTPException(404,"Job Card not found.")
     if user.role==Role.END_USER and not db.scalar(select(Assignment).where(Assignment.job_card_id==card_id,Assignment.user_id==user.id,Assignment.active==True)): raise HTTPException(403,"You are not assigned to this Job Card.")
-    if user.role==Role.DIRECTOR and card.director_id!=user.id: raise HTTPException(403,"You are not assigned to this Job Card.")
     return card
 
 def mutable_card(card:JobCard):
@@ -2824,18 +2830,12 @@ def _milestone_admin_review_details(db:Session,milestone:Milestone):
         for plan in completed_plans:
             plan_visit=db.scalar(select(Visit).where(Visit.planned_visit_id==plan.id,Visit.deleted_at.is_(None)).order_by(Visit.visit_number.desc()).limit(1))
             card=db.get(JobCard,plan.job_card_id)
-            required_names=tuple(name for name,_ in milestone_visit_deliverables(milestone,plan_visit.visit_number if plan_visit else plan.visit_number,card))
+            required_names=tuple(name for name,_,_ in milestone_visit_deliverables(milestone,plan_visit.visit_number if plan_visit else plan.visit_number,card,db))
             for required_name in required_names:
-                activity=next((row for row in activities if row.planned_visit_id==plan.id and row.name==required_name),None)
-                attachment=latest_by_activity.get(activity.id) if activity else None
-                if not activity or activity.status!="COMPLETED" or not attachment or attachment.status!="APPROVED":
+                activity=next((row for row in activities if row.planned_visit_id==plan.id and normalize_visit_activity_name(row.name)==normalize_visit_activity_name(required_name)),None)
+                if not activity or activity.status!="COMPLETED" or activity.review_status!="APPROVED" or not _activity_evidence_approved(db,activity):
                     ready=False
-    completed_plans=list(db.scalars(select(PlannedVisit).where(PlannedVisit.milestone_id==milestone.id,PlannedVisit.status=="COMPLETED")))
-    for plan in completed_plans:
-        visit=db.scalar(select(Visit).where(Visit.planned_visit_id==plan.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))))
-        report=db.scalar(select(RecordDocument).where(RecordDocument.visit_id==visit.id,RecordDocument.document_type=="Consultant Visit Report").order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1)) if visit else None
-        if not report or report.status!="APPROVED": ready=False
-    latest_records=list(db.scalars(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.payment_id.is_(None)).order_by(RecordDocument.document_type,RecordDocument.version.desc(),RecordDocument.id.desc())))
+    latest_records=list(db.scalars(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.payment_id.is_(None),~RecordDocument.document_type.like("M1 Final Report%"),~RecordDocument.document_type.like("M2 Final Report%"),~RecordDocument.document_type.like("M3 Final Report%"),RecordDocument.document_type!="Consultant Visit Report").order_by(RecordDocument.document_type,RecordDocument.version.desc(),RecordDocument.id.desc())))
     seen_types=set()
     for document in latest_records:
         if document.document_type in seen_types: continue
@@ -2852,6 +2852,7 @@ def submit_milestone_review(milestone_id:int,db:DB,user:Annotated[User,Depends(r
     if not milestone: raise HTTPException(404,"Milestone not found.")
     card=mutable_card(assigned_card(db,user,milestone.job_card_id))
     if user.id!=document_owner(db,card.id): raise HTTPException(403,"Only the assigned lead consultant can submit milestone reviews.")
+    if milestone.code.upper() in ("M1","M2","M3"): raise HTTPException(409,f"Submit the {milestone.code} final report instead. Admin will review it before sending the milestone to Management.")
     summary=milestone_summary(db,milestone)
     if summary["actual_visits"]<milestone.planned_visits: raise HTTPException(422,"Complete the planned submitted visits before requesting milestone review.")
     if summary["status"] in ("LOCKED","COMPLETED"): raise HTTPException(409,"This milestone is payment locked or already complete.")
@@ -2862,6 +2863,51 @@ def submit_milestone_review(milestone_id:int,db:DB,user:Annotated[User,Depends(r
     cycle+=1
     row=milestone_review_record(db,milestone,cycle,"CONSULTANT","SUBMITTED",None,user);db.commit();db.refresh(row);return row
 
+@app.post("/api/milestones/{milestone_id}/final-report",response_model=RecordDocumentOut,status_code=201)
+def submit_milestone_final_report(milestone_id:int,data:ConsultantVisitReportIn,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
+    milestone=db.get(Milestone,milestone_id)
+    if not milestone:raise HTTPException(404,"Milestone not found.")
+    if milestone.code.upper()!="M1":raise HTTPException(409,"This final-report workflow is currently configured for M1.")
+    card=mutable_card(assigned_card(db,user,milestone.job_card_id))
+    if user.id!=_milestone_report_consultant_id(db,milestone):raise HTTPException(403,"Only the consultant assigned to this milestone can submit its final report.")
+    _require_work_payment(db,card,milestone)
+    summary=milestone_summary(db,milestone)
+    if summary["actual_visits"]<milestone.planned_visits:raise HTTPException(409,"Complete and submit every planned M1 visit before submitting the final report.")
+    if not _milestone_admin_review_ready(db,milestone):raise HTTPException(409,"Admin must approve every completed M1 activity and its evidence before the final report can be submitted.")
+    latest=db.scalar(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like("M1 Final Report%"),RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.uploaded_at.desc(),RecordDocument.id.desc()).limit(1))
+    history=milestone_review_events(db,milestone.id)
+    cycle=max((event.cycle for event in history),default=0)
+    current=[event for event in history if event.cycle==cycle]
+    management_returned=any(event.stage=="MANAGEMENT" and event.decision in ("RETURNED","REJECTED") for event in current)
+    if latest and latest.status not in ("RETURNED","REJECTED") and not management_returned:raise HTTPException(409,"The M1 final report is already submitted or approved.")
+    existing_consultant_submission=any(event.stage=="CONSULTANT" and event.decision=="SUBMITTED" for event in current)
+    if current and not any(event.stage in ("MANAGEMENT","ADMIN") and event.decision in ("RETURNED","REJECTED") for event in current) and not (latest is None and existing_consultant_submission):raise HTTPException(409,"The M1 final report is already in review.")
+    if not current:cycle=1
+    visits=list(db.scalars(select(Visit).where(Visit.milestone_id==milestone.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))).order_by(Visit.visit_date,Visit.id)))
+    activities=list(db.scalars(select(JobActivity).where(JobActivity.milestone_id==milestone.id,JobActivity.status=="COMPLETED").order_by(JobActivity.id)))
+    rows=[{"Section":"Title","Details":data.title},{"Section":"Job Card","Details":card.number},{"Section":"Milestone","Details":f"{milestone.code} {milestone.name}"},{"Section":"Consultant","Details":user.full_name},{"Section":"Visit summary","Details":"\n".join(f"{visit.visit_date}: {visit.work_details}; findings: {visit.findings or 'None'}" for visit in visits)},{"Section":"Completed activities","Details":"\n".join(f"{activity.name}: {activity.description}" for activity in activities)},{"Section":"Executive summary","Details":data.summary},{"Section":"Findings","Details":data.findings},{"Section":"Actions and recommendations","Details":data.actions or "None"},{"Section":"Conclusion","Details":data.conclusion}]
+    if data.format=="xlsx":content=to_xlsx(rows);extension="xlsx";mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        paragraphs="".join(f'<w:p><w:r><w:t xml:space="preserve">{xml_escape(row["Section"])}: {xml_escape(row["Details"])}</w:t></w:r></w:p>' for row in rows)
+        content_types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+        document=f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{paragraphs}<w:sectPr/></w:body></w:document>'
+        buffer=BytesIO()
+        with ZipFile(buffer,"w",ZIP_DEFLATED) as package:
+            package.writestr("[Content_Types].xml",content_types);package.writestr("_rels/.rels",'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');package.writestr("word/document.xml",document)
+        content=buffer.getvalue();extension="docx";mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    filename=f"{card.number}-M1-Final-Report-v{(latest.version+1) if latest else 1}.{extension}"
+    try:storage_key=save_file(filename,mime,content)
+    except ValueError as exc:raise HTTPException(422,str(exc)) from None
+    version=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like("M1 Final Report%"))) or 0)+1
+    document=RecordDocument(owner_job_card_id=card.id,milestone_id=milestone.id,document_type="M1 Final Report",file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=version,status="SUBMITTED",remarks="Submitted by lead consultant for Admin review.",uploaded_by=user.id)
+    db.add(document);db.flush()
+    if current and any(event.stage in ("MANAGEMENT","ADMIN") and event.decision in ("RETURNED","REJECTED") for event in current):cycle+=1
+    if not existing_consultant_submission or any(event.stage in ("MANAGEMENT","ADMIN") and event.decision in ("RETURNED","REJECTED") for event in current):milestone_review_record(db,milestone,cycle,"CONSULTANT","SUBMITTED",None,user)
+    audit(db,user.id,"M1_FINAL_REPORT_SUBMITTED","DOCUMENT",document.id,f"{card.number}; cycle {cycle}")
+    for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+        notify(db,admin.id,f"M1 final report for {card.number} is awaiting Admin review.",f"/admin/documents?document={document.id}")
+    db.commit();db.refresh(document);return document
+
 @app.get("/api/milestones/management-review-queue")
 def management_milestone_review_queue(db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT))]):
     result=[]
@@ -2869,9 +2915,15 @@ def management_milestone_review_queue(db:DB,user:Annotated[User,Depends(require(
         events=milestone_review_events(db,event.milestone_id,event.cycle)
         if any(e.stage=="MANAGEMENT" for e in events): continue
         milestone=db.get(Milestone,event.milestone_id);card=db.get(JobCard,milestone.job_card_id)
+        if milestone.code.upper() in ("M1","M2","M3") and not any(e.stage=="ADMIN" and e.decision=="APPROVED" for e in events):continue
         admin_ready,deliverables=_milestone_admin_review_details(db,milestone)
         if not admin_ready: continue
-        result.append({"milestone_id":milestone.id,"job_card_id":card.id,"job_card_number":card.number,"code":milestone.code,"name":milestone.name,"planned_visits":milestone.planned_visits,"actual_visits":milestone_summary(db,milestone)["actual_visits"],"cycle":event.cycle,"submitted_at":event.created_at,"admin_approved_deliverables":deliverables})
+        final_report=None
+        if milestone.code.upper() in ("M1","M2","M3"):
+            report_type=_milestone_report_type(milestone.code)
+            report=db.scalar(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.status=="APPROVED",RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.uploaded_at.desc(),RecordDocument.id.desc()).limit(1))
+            final_report={"id":report.id,"file_name":report.file_name,"status":report.status} if report else None
+        result.append({"milestone_id":milestone.id,"job_card_id":card.id,"job_card_number":card.number,"code":milestone.code,"name":milestone.name,"planned_visits":milestone.planned_visits,"actual_visits":milestone_summary(db,milestone)["actual_visits"],"cycle":event.cycle,"submitted_at":event.created_at,"admin_approved_deliverables":deliverables,"final_report":final_report})
     return result
 
 @app.post("/api/milestones/{milestone_id}/management-review",response_model=MilestoneReviewOut,status_code=201)
@@ -2882,6 +2934,7 @@ def decide_milestone_management_review(milestone_id:int,data:MilestoneReviewDeci
     if not any(e.stage=="CONSULTANT" and e.decision=="SUBMITTED" for e in current): raise HTTPException(409,"Milestone has not been submitted for review.")
     if any(e.stage=="MANAGEMENT" for e in current): raise HTTPException(409,"Management has already reviewed this cycle.")
     if not _milestone_admin_review_ready(db,milestone): raise HTTPException(409,"Admin must approve all milestone activities and required deliverables before Management can review this milestone.")
+    if milestone.code.upper() in ("M1","M2","M3") and not any(e.stage=="ADMIN" and e.decision=="APPROVED" for e in current):raise HTTPException(409,f"Admin must approve the {milestone.code} final report before Management can review this milestone.")
     if data.decision in ("RETURNED","REJECTED") and not (data.comment and data.comment.strip()): raise HTTPException(422,"A reason is required when returning or rejecting a milestone.")
     card=db.get(JobCard,milestone.job_card_id)
     row=milestone_review_record(db,milestone,cycle,"MANAGEMENT",data.decision,data.comment,user)
@@ -2891,6 +2944,12 @@ def decide_milestone_management_review(milestone_id:int,data:MilestoneReviewDeci
         if next_stage:
             _start_triggered_workflows(db,"MILESTONE_COMPLETED",card,user,next_stage)
             audit(db,user.id,"NEXT_MILESTONE_PAYMENT_REQUESTED","MILESTONE",next_stage.id,f"{milestone.code} approved by Management; Finance workflow started for {next_stage.code}.")
+    elif milestone.code.upper() in ("M1","M2","M3"):
+        report_type=_milestone_report_type(milestone.code)
+        report=db.scalar(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.uploaded_at.desc(),RecordDocument.id.desc()).limit(1))
+        if report and report.status=="APPROVED":
+            report.status="RETURNED";report.remarks=data.comment
+            notify(db,report.uploaded_by,f"Management returned the M1 final report for {card.number}: {data.comment}. Revise and resubmit it for Admin review.",f"/user/job-cards?card={card.id}")
     db.commit();db.refresh(row);return row
 
 @app.patch("/api/milestones/{milestone_id}",response_model=MilestoneOut)
@@ -3045,7 +3104,11 @@ def list_planned_visits(db:DB,user:Annotated[User,Depends(require(Role.END_USER,
     if milestone_id: query=query.where(PlannedVisit.milestone_id==milestone_id)
     if start_date: query=query.where(PlannedVisit.visit_date>=start_date)
     if end_date: query=query.where(PlannedVisit.visit_date<=end_date)
-    return [{**PlannedVisitOut.model_validate(row).model_dump(),"job_card_number":card_number,"msme_name":msme_name,"milestone_code":milestone_code,"milestone_name":milestone_name,"consultant_name":consultant_name} for row,card_number,msme_name,milestone_code,milestone_name,consultant_name in db.execute(query.order_by(PlannedVisit.visit_date,PlannedVisit.start_time).limit(500))]
+    rows=list(db.execute(query.order_by(PlannedVisit.visit_date,PlannedVisit.start_time).limit(500)))
+    for planned,*_ in rows:
+        if planned.status!="COMPLETED":finish_approved_visit_deliverables(db,planned,user)
+    if db.dirty:db.commit()
+    return [{**PlannedVisitOut.model_validate(row).model_dump(),"job_card_number":card_number,"msme_name":msme_name,"milestone_code":milestone_code,"milestone_name":milestone_name,"consultant_name":consultant_name} for row,card_number,msme_name,milestone_code,milestone_name,consultant_name in rows]
 
 @app.get("/api/planned-visits/{visit_id}/attachment")
 def download_planned_visit_attachment(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER,Role.ADMIN,Role.MANAGEMENT))]):
@@ -3082,31 +3145,52 @@ def planner_notify(db:Session,card:JobCard,message:str):
     for recipient in recipients: notify(db,recipient,message,f"/job-cards/{card.id}")
 
 ZED_M1_VISIT_1=(
-    ("Parameters 1–14 allocation","Allocate parameters 1 to 14."),
-    ("Site exterior and interior photos","Capture site exterior and interior photos."),
-    ("Opening meeting","Conduct and record the opening meeting."),
-    ("Basic information upload in app","Complete basic information in the ZED app."),
-    ("Site tour – 20 photos","Conduct the site tour and upload 20 photos."),
-    ("ZED awareness training","Conduct ZED awareness training."),
-    ("Baseline Diagnostic Study: Gap Assessment","Complete the baseline diagnostic study and gap assessment."),
+    ("Parameters 1?14 allocation","Allocate parameters 1 to 14.","EITHER"),
+    ("Site exterior and interior photos","Capture site exterior and interior photos.","EITHER"),
+    ("Opening meeting","Conduct and record the opening meeting.","EITHER"),
+    ("Basic information upload in app","Complete basic information in the ZED app.","EITHER"),
+    ("Site tour ? 20 photos","Conduct the site tour and upload 20 photos.","EITHER"),
+    ("ZED awareness training","Conduct ZED awareness training.","EITHER"),
+    ("Baseline Diagnostic Study: Gap Assessment","Complete the baseline diagnostic study and gap assessment.","EITHER"),
 )
 ZED_M1_VISIT_2=(
-    ("Parameters 1–14 handholding action plan","Prepare the handholding action plan against gaps found."),
-    ("Technology selection and upgradation recommendations","Recommend technology selection and upgradation."),
-    ("Handholding implementation plan training","Train the client on the handholding implementation plan."),
-    ("Closing meeting","Conduct and record the closing meeting."),
-    ("Final submission from web module","Complete the final submission from the web module."),
+    ("Parameters 1?14 handholding action plan","Prepare the handholding action plan against gaps found.","EITHER"),
+    ("Technology selection and upgradation recommendations","Recommend technology selection and upgradation.","EITHER"),
+    ("Handholding implementation plan training","Train the client on the handholding implementation plan.","EITHER"),
+    ("Closing meeting","Conduct and record the closing meeting.","EITHER"),
+    ("Final submission from web module","Complete the final submission from the web module.","EITHER"),
 )
-M1_VISIT_DELIVERABLES=(("Case study","Prepare and submit the M1 case study for this visit."),("Photo","Upload a photo record from this M1 visit."),("Plan","Submit the plan and next steps for this M1 visit."))
+M1_VISIT_DELIVERABLES=(("Case study","Prepare and submit the M1 case study for this visit.","EITHER"),("Photo","Upload a photo record from this M1 visit.","EITHER"),("Plan","Submit the plan and next steps for this M1 visit.","EITHER"))
 
-def milestone_visit_deliverables(milestone:Milestone,visit_number:int|None=None,card:JobCard|None=None)->tuple[tuple[str,str],...]:
+def normalize_activity_template_service(value:str|None)->str:
+    label=" ".join((value or "").upper().replace("-"," ").split())
+    if "ZED" in label and "SILVER" in label:return "ZED Silver"
+    if "ZED" in label and "GOLD" in label:return "ZED Gold"
+    if "ZED" in label and "BRONZE" in label:return "ZED Bronze"
+    if "LEAN" in label:return "Lean"
+    if "ISO" in label:return "ISO"
+    if "TRAIN" in label:return "Training"
+    return (value or "").strip()[:120]
+
+def normalize_visit_activity_name(value:str)->str:
+    return re.sub(r"[^a-z0-9]+","",value.casefold())
+
+def planned_visit_activity(db:Session,planned_visit_id:int,name:str)->JobActivity|None:
+    target=normalize_visit_activity_name(name)
+    return next((activity for activity in db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned_visit_id)) if normalize_visit_activity_name(activity.name)==target),None)
+
+def milestone_visit_deliverables(milestone:Milestone,visit_number:int|None=None,card:JobCard|None=None,db:Session|None=None)->tuple[tuple[str,str,str],...]:
+    if db and card and visit_number:
+        service=normalize_activity_template_service(f"{card.service_name or ''} {card.package_code or ''}")
+        templates=list(db.scalars(select(VisitActivityTemplate).where(VisitActivityTemplate.service_name==service,VisitActivityTemplate.milestone_code==milestone.code.upper(),VisitActivityTemplate.visit_number==visit_number).order_by(VisitActivityTemplate.position,VisitActivityTemplate.id))) if service else []
+        if templates:return tuple((row.activity_name,row.description,row.document_format) for row in templates)
     if milestone.code.upper()=="M1":
         if visit_number in (1,2) and card and (card.service_name or "").upper().startswith("ZED") and "SILVER" in f"{card.service_name} {card.package_code}".upper():
             return ZED_M1_VISIT_1 if visit_number==1 else ZED_M1_VISIT_2
         return M1_VISIT_DELIVERABLES
     configured=milestone.activities if isinstance(milestone.activities,list) else []
     names=list(dict.fromkeys(str(name).strip() for name in configured if str(name).strip()))
-    return tuple((name,f"Complete the {name} milestone deliverable for this visit.") for name in names)
+    return tuple((name,f"Complete the {name} milestone deliverable for this visit.","EITHER") for name in names)
 
 def ensure_visit_deliverable_tasks(db:Session,row:PlannedVisit,user:User,visit:Visit|None,submitted_at:datetime)->int:
     milestone=db.get(Milestone,row.milestone_id)
@@ -3114,7 +3198,7 @@ def ensure_visit_deliverable_tasks(db:Session,row:PlannedVisit,user:User,visit:V
     card=db.get(JobCard,row.job_card_id)
     visit_number=visit.visit_number if visit else row.visit_number
     if visit_number and row.visit_number is None: row.visit_number=visit_number
-    deliverables=milestone_visit_deliverables(milestone,visit_number,card)
+    deliverables=milestone_visit_deliverables(milestone,visit_number,card,db)
     if not deliverables: return 0
     kind=db.scalar(select(ActivityType).where(ActivityType.code=="DOCUMENTATION"))
     if not kind:
@@ -3122,13 +3206,17 @@ def ensure_visit_deliverable_tasks(db:Session,row:PlannedVisit,user:User,visit:V
     due_at=submitted_at+timedelta(hours=24)
     due_date=due_at.astimezone(ZoneInfo("Asia/Kolkata")).date()
     started_date=submitted_at.astimezone(ZoneInfo("Asia/Kolkata")).date()
-    for name,description in deliverables:
-        task=db.scalar(select(JobActivity).where(JobActivity.planned_visit_id==row.id,JobActivity.name==name))
+    configured_names={normalize_visit_activity_name(name) for name,_,_ in deliverables}
+    for obsolete in db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==row.id)):
+        if normalize_visit_activity_name(obsolete.name) not in configured_names and obsolete.status!="COMPLETED":obsolete.status="CANCELLED"
+    for name,description,document_format in deliverables:
+        task=planned_visit_activity(db,row.id,name)
         if not task:
-            task=JobActivity(job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=visit.id if visit else None,planned_visit_id=row.id,activity_type_id=kind.id,name=name,description=description,assigned_user_id=user.id,start_date=started_date,end_date=due_date,sla_due_at=due_at,duration_minutes=0,status="PLANNED",remarks=f"Required {milestone.code} visit deliverable; due within 24 hours of planned visit",created_by=user.id)
+            task=JobActivity(job_card_id=row.job_card_id,milestone_id=row.milestone_id,visit_id=visit.id if visit else None,planned_visit_id=row.id,activity_type_id=kind.id,name=name,description=description,document_format=document_format,assigned_user_id=user.id,start_date=started_date,end_date=due_date,sla_due_at=due_at,duration_minutes=0,status="PLANNED",remarks=f"Required {milestone.code} visit deliverable; due within 24 hours of planned visit",created_by=user.id)
             db.add(task)
         else:
             if visit: task.visit_id=visit.id
+            task.document_format=document_format
             task.assigned_user_id=user.id
             task.start_date=started_date
             task.end_date=due_date
@@ -3142,18 +3230,30 @@ def visit_deliverables_complete(db:Session,milestone:Milestone,planned_visit_id:
     planned=db.get(PlannedVisit,planned_visit_id)
     visit=db.scalar(select(Visit).where(Visit.planned_visit_id==planned_visit_id,Visit.deleted_at.is_(None))) if planned else None
     card=db.get(JobCard,planned.job_card_id) if planned else None
-    for name,_ in milestone_visit_deliverables(milestone,visit.visit_number if visit else planned.visit_number if planned else None,card):
-        task=db.scalar(select(JobActivity).where(JobActivity.planned_visit_id==planned_visit_id,JobActivity.name==name))
-        attachment=db.scalar(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==task.id).order_by(JobActivityAttachment.id.desc()).limit(1)) if task else None
-        if not task or task.status!="COMPLETED" or task.review_status!="APPROVED" or not attachment or attachment.status!="APPROVED":
+    for name,_,_ in milestone_visit_deliverables(milestone,visit.visit_number if visit else planned.visit_number if planned else None,card,db):
+        task=planned_visit_activity(db,planned_visit_id,name)
+        if not task or task.status!="COMPLETED" or task.review_status!="APPROVED" or not _activity_evidence_approved(db,task):
             return False
     return True
+
+def _activity_evidence_approved(db:Session,activity:JobActivity)->bool:
+    latest_attachment=db.scalar(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==activity.id).order_by(JobActivityAttachment.id.desc()).limit(1))
+    if latest_attachment and latest_attachment.status=="APPROVED":return True
+    latest_by_type={}
+    for document in _activity_record_documents(db,activity):
+        latest_by_type.setdefault(document.document_type,document)
+    return any(document.status=="APPROVED" for document in latest_by_type.values())
 
 def finish_approved_visit_deliverables(db:Session,planned:PlannedVisit,actor:User):
     milestone=db.get(Milestone,planned.milestone_id);card=db.get(JobCard,planned.job_card_id)
     if not milestone or not card or planned.status=="COMPLETED":return False
     visit=db.scalar(select(Visit).where(Visit.planned_visit_id==planned.id,Visit.deleted_at.is_(None),Visit.status.in_(("SUBMITTED","APPROVED"))).order_by(Visit.visit_number.desc()).limit(1))
-    if not visit or not milestone_visit_deliverables(milestone,visit.visit_number,card) or not visit_deliverables_complete(db,milestone,planned.id):return False
+    if not visit or not milestone_visit_deliverables(milestone,visit.visit_number,card,db):return False
+    for name,_,_ in milestone_visit_deliverables(milestone,visit.visit_number,card,db):
+        activity=planned_visit_activity(db,planned.id,name)
+        if activity and activity.status=="COMPLETED" and activity.review_status in ("SUBMITTED","UNDER_REVIEW") and _activity_evidence_approved(db,activity):
+            activity.review_status="APPROVED"
+    if not visit_deliverables_complete(db,milestone,planned.id):return False
     planned.status="COMPLETED";planned.outcome=planned.outcome or "Visit record submitted and all required activities and evidence approved."
     audit(db,actor.id,"VISIT_DELIVERABLES_APPROVED","PLANNED_VISIT",planned.id,"All required visit activities and evidence were approved.")
     notify(db,visit.created_by,f"All required activities and evidence for visit {visit.visit_number} on Job Card {card.number} were approved. The visit is now valid.",f"/job-cards/{card.id}")
@@ -3205,7 +3305,7 @@ def update_planned_visit(visit_id:int,data:PlannedVisitUpdate,db:DB,user:Annotat
         if not (changes.get("outcome",row.outcome) or "").strip(): raise HTTPException(422,"Record visit findings or outcome before completing the planned visit.")
         milestone=db.get(Milestone,row.milestone_id)
         visit_for_plan=db.scalar(select(Visit).where(Visit.planned_visit_id==row.id,Visit.deleted_at.is_(None)).order_by(Visit.visit_number.desc()).limit(1))
-        if milestone and milestone_visit_deliverables(milestone,visit_for_plan.visit_number if visit_for_plan else None,card):
+        if milestone and milestone_visit_deliverables(milestone,visit_for_plan.visit_number if visit_for_plan else None,card,db):
             visit_report=db.scalar(select(Visit).where(Visit.planned_visit_id==row.id,Visit.status.in_(("SUBMITTED","REVIEWED","APPROVED")),Visit.deleted_at.is_(None)))
             if not visit_report: raise HTTPException(409,"Submit the visit report first. Configured milestone tasks are created after report submission.")
             if not visit_deliverables_complete(db,milestone,row.id):
@@ -3251,6 +3351,29 @@ def save_draft(card_id:int,data:VisitCreate,db:DB,user:Annotated[User,Depends(re
         except HTTPException: raise
         except Exception: raise HTTPException(422,"The visit attachment is invalid.")
     next_number=int(db.scalar(select(func.coalesce(func.max(Visit.visit_number),0)+1).where(Visit.job_card_id==card_id)) or 1)
+    visit=Visit(
+        job_card_id=card.id,
+        milestone_id=milestone.id,
+        planned_visit_id=planned.id,
+        visit_number=next_number,
+        visit_date=data.visit_date,
+        start_time=data.start_time,
+        end_time=data.end_time,
+        location=data.location or planned.location,
+        findings=data.findings,
+        working_minutes=visit_duration(data),
+        work_details=data.work_details,
+        rating_code=data.rating_code,
+        rating_description=RATINGS[data.rating_code],
+        remarks=data.remarks,
+        status="DRAFT",
+        created_by=user.id,
+        **team,
+        **attachment,
+    )
+    db.add(visit);db.flush()
+    audit(db,user.id,"VISIT_DRAFT_SAVED","VISIT",visit.id,f"Visit {visit.visit_number}; planned visit {planned.id}")
+    db.commit();db.refresh(visit);return visit
 
 @app.patch("/api/visits/{visit_id}",response_model=VisitOut)
 def edit_visit(visit_id:int,data:VisitUpdate,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
@@ -3280,11 +3403,11 @@ def edit_visit(visit_id:int,data:VisitUpdate,db:DB,user:Annotated[User,Depends(r
     db.commit(); db.refresh(visit); return visit
 
 @app.get("/api/visits/review-queue")
-def visit_review_queue(db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT))],page:int=Query(default=1,ge=1),page_size:int=Query(default=25,ge=1,le=100)):
-    base=select(Visit,JobCard.number).join(JobCard,JobCard.id==Visit.job_card_id).where(Visit.status=="SUBMITTED",Visit.deleted_at==None,JobCard.deleted_at==None)
+def visit_review_queue(db:DB,user:Annotated[User,Depends(require(Role.ADMIN))],page:int=Query(default=1,ge=1),page_size:int=Query(default=25,ge=1,le=100)):
+    base=select(Visit,JobCard.number,User.full_name).join(JobCard,JobCard.id==Visit.job_card_id).join(User,User.id==Visit.created_by).where(Visit.status=="SUBMITTED",Visit.deleted_at==None,JobCard.deleted_at==None)
     total=int(db.scalar(select(func.count()).select_from(base.subquery())) or 0)
     rows=db.execute(base.order_by(Visit.created_at,Visit.id).offset((page-1)*page_size).limit(page_size))
-    items=[{**VisitOut.model_validate(visit).model_dump(),"job_card_number":number} for visit,number in rows]
+    items=[{**VisitOut.model_validate(visit).model_dump(),"job_card_number":number,"submitted_by_name":name} for visit,number,name in rows]
     return {"items":items,"total":total,"page":page,"page_size":page_size}
 
 @app.get("/api/visits/{visit_id}/review-history")
@@ -3307,7 +3430,7 @@ def record_visit_review(db:Session,visit:Visit,decision:str,comment:str|None,use
     db.commit();db.refresh(visit);return visit
 
 @app.post("/api/visits/{visit_id}/review",response_model=VisitOut)
-def decide_visit_review(visit_id:int,data:VisitReviewDecision,db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT,Role.ADMIN))]):
+def decide_visit_review(visit_id:int,data:VisitReviewDecision,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
     visit=db.get(Visit,visit_id)
     if not visit or visit.deleted_at: raise HTTPException(404,"Visit not found.")
     assigned_card(db,user,visit.job_card_id)
@@ -3328,16 +3451,14 @@ def submit_visit(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.END
         raise HTTPException(422,"A valid visit plan for this Job Card, milestone, and date is required before submission.")
     planned_team={person_id for person_id in (planned.consultant_id,planned.co_consultant_id,planned.subject_expert_id) if person_id is not None}
     if user.id not in planned_team: raise HTTPException(403,"Only a consultant assigned to the planned visit can submit its report.")
-    if (not milestone or milestone.code.upper()!="M1") and not visit.attachment_key:
-        raise HTTPException(422,"Attach a visit report, photo, or other supporting evidence before submission.")
     submitted_at=datetime.now(timezone.utc)
     visit.status="SUBMITTED"
-    deliverables=milestone_visit_deliverables(milestone,visit.visit_number,card) if milestone else ()
+    deliverables=milestone_visit_deliverables(milestone,visit.visit_number,card,db) if milestone else ()
     planned.status="IN_PROGRESS" if deliverables else "COMPLETED"
     planned.actual_date=visit.visit_date
     planned.actual_start_time=visit.start_time or planned.start_time
     planned.actual_duration_minutes=visit.working_minutes
-    planned.outcome=(visit.findings or visit.work_details).strip()
+    planned.outcome=None
     if visit.attachment_key:
         planned.attachment_key=visit.attachment_key
         planned.attachment_name=visit.attachment_name
@@ -3355,6 +3476,8 @@ def submit_visit(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.END
     else:
         audit(db,user.id,"PLANNED_VISIT_COMPLETED","PLANNED_VISIT",planned.id,f"Linked visit report {visit.visit_number}")
         notify(db,card.created_by,f"Visit {visit.visit_number} was submitted and linked to its planned visit for Job Card {card.number}.",f"/job-cards/{card.id}")
+    for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+        notify(db,admin.id,f"Visit {visit.visit_number} for Job Card {card.number} is awaiting Admin approval.","/admin/visit-reviews")
     db.commit(); db.refresh(visit); return visit
 
 @app.get("/api/job-cards/{card_id}/visits",response_model=list[VisitOut])
@@ -3379,7 +3502,7 @@ def download_visit_attachment(visit_id:int,db:DB,user:Annotated[User,Depends(cur
     return Response(content=path.read_bytes(),media_type=visit.attachment_mime_type,headers={"Content-Disposition":f'attachment; filename="{visit.attachment_name}"'})
 
 @app.post("/api/visits/{visit_id}/reject",response_model=VisitOut)
-def reject_visit(visit_id:int,data:VisitRejectIn,db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT))]):
+def reject_visit(visit_id:int,data:VisitRejectIn,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
     visit=db.get(Visit,visit_id)
     if not visit or visit.deleted_at: raise HTTPException(404,"Visit not found.")
     assigned_card(db,user,visit.job_card_id)
@@ -3396,8 +3519,11 @@ def resubmit_visit(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.E
     if not planned or planned.job_card_id!=card.id or planned.milestone_id!=visit.milestone_id or planned.visit_date!=visit.visit_date or planned.status=="CANCELLED": raise HTTPException(422,"The visit report must remain linked to its original valid visit plan.")
     if user.id not in {person_id for person_id in (planned.consultant_id,planned.co_consultant_id,planned.subject_expert_id) if person_id is not None}: raise HTTPException(403,"Only a consultant assigned to the planned visit can resubmit its report.")
     milestone=db.get(Milestone,visit.milestone_id)
-    if milestone and milestone.code.upper()!="M1" and not visit.attachment_key: raise HTTPException(422,"Attach a visit report, photo, or other supporting evidence before resubmission.")
-    visit.status="SUBMITTED"; visit.rejection_reason=None; visit.rejected_by=None; visit.rejected_at=None; card.status="IN_PROGRESS"; audit(db,user.id,"VISIT_RESUBMITTED","VISIT",visit.id); notify(db,card.created_by,f"Visit {visit.visit_number} was resubmitted for Job Card {card.number}.",f"/job-cards/{card.id}"); db.commit(); db.refresh(visit); return visit
+    ensure_visit_deliverable_tasks(db,planned,user,visit,datetime.now(timezone.utc))
+    visit.status="SUBMITTED"; visit.rejection_reason=None; visit.rejected_by=None; visit.rejected_at=None; card.status="IN_PROGRESS"; audit(db,user.id,"VISIT_RESUBMITTED","VISIT",visit.id); notify(db,card.created_by,f"Visit {visit.visit_number} was resubmitted for Job Card {card.number}.",f"/job-cards/{card.id}");
+    for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+        notify(db,admin.id,f"Visit {visit.visit_number} for Job Card {card.number} was resubmitted and is awaiting Admin approval.","/admin/visit-reviews")
+    db.commit(); db.refresh(visit); return visit
 @app.delete("/api/visits/{visit_id}",status_code=204)
 def archive_visit(visit_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     visit=db.get(Visit,visit_id)
@@ -3599,12 +3725,139 @@ def _google_access_for_user(db:Session,user_id:int)->str:
     except Exception: raise HTTPException(503,"Google authorization cannot be read. Reconnect your Google account.") from None
     return google_workspace.access_token(refresh)
 
+def _milestone_report_type(code:str)->str:
+    return f"{code.upper()} Final Report"
+
+def _is_milestone_final_report(document:RecordDocument)->bool:
+    return bool(document.milestone_id and re.match(r"^M[123] Final Report(?:\b|\s)",document.document_type))
+
+def _milestone_report_source(db:Session,milestone:Milestone,card:JobCard)->str:
+    client=db.get(MSME,card.msme_id)
+    activities=list(db.scalars(select(JobActivity).where(JobActivity.milestone_id==milestone.id,JobActivity.status!="CANCELLED").order_by(JobActivity.id)))
+    activity_rows=[]
+    for activity in activities:
+        attachments=list(db.scalars(select(JobActivityAttachment).where(JobActivityAttachment.activity_id==activity.id).order_by(JobActivityAttachment.id)))
+        activity_rows.append({"activity":activity.name,"description":activity.description,"status":activity.status,"admin_review":activity.review_status,"consultant_remarks":activity.remarks,"admin_remarks":activity.review_remarks,"evidence":[{"file":item.file_name,"status":item.status,"admin_remarks":item.review_remarks} for item in attachments]})
+    plans=list(db.scalars(select(PlannedVisit).where(PlannedVisit.milestone_id==milestone.id).order_by(PlannedVisit.visit_date,PlannedVisit.id)))
+    visit_rows=[]
+    for plan in plans:
+        visit=db.scalar(select(Visit).where(Visit.planned_visit_id==plan.id,Visit.deleted_at.is_(None)).order_by(Visit.visit_number.desc()).limit(1))
+        visit_rows.append({"visit_number":plan.visit_number,"date":plan.visit_date,"planned_objective":plan.objective,"planned_status":plan.status,"actual_duration_minutes":plan.actual_duration_minutes,"visit_status":visit.status if visit else None,"work_details":visit.work_details if visit else None,"findings":visit.findings if visit else None,"remarks":visit.remarks if visit else None})
+    return json.dumps({"job_card":card.number,"client":client.name if client else None,"industry":client.industry if client else None,"location":card.location,"project":card.project_name,"scope":card.scope,"milestone":{"code":milestone.code,"name":milestone.name,"description":milestone.description,"planned_visits":milestone.planned_visits,"planned_mandays":milestone.planned_mandays},"activities":activity_rows,"visits":visit_rows},ensure_ascii=False,default=str)
+
+def _milestone_report_ready(db:Session,milestone:Milestone)->bool:
+    if milestone.code.upper() not in ("M1","M2","M3") or not _milestone_predecessors_completed(db,milestone) or milestone_summary(db,milestone)["actual_visits"]<milestone.planned_visits:
+        return False
+    if not db.scalar(select(JobActivity.id).where(JobActivity.milestone_id==milestone.id,JobActivity.status!="CANCELLED").limit(1)):
+        return False
+    return _milestone_admin_review_ready(db,milestone)
+
+def _milestone_predecessors_completed(db:Session,milestone:Milestone)->bool:
+    """Keep milestone report work in sequence: M1, then M2, then M3."""
+    sequence=("M1","M2","M3")
+    code=milestone.code.upper()
+    if code not in sequence:return False
+    card_milestones={row.code.upper():row for row in db.scalars(select(Milestone).where(Milestone.job_card_id==milestone.job_card_id))}
+    for previous_code in sequence[:sequence.index(code)]:
+        previous=card_milestones.get(previous_code)
+        if not previous or milestone_summary(db,previous)["status"]!="COMPLETED":return False
+    return True
+
+def _milestone_report_consultant_id(db:Session,milestone:Milestone)->int|None:
+    return milestone.responsible_consultant_id or document_owner(db,milestone.job_card_id)
+
+def _require_milestone_predecessors_completed(db:Session,milestone:Milestone)->None:
+    sequence=("M1","M2","M3")
+    code=milestone.code.upper()
+    if code not in sequence:raise HTTPException(409,"Final reports are available only for M1, M2, and M3.")
+    card_milestones={row.code.upper():row for row in db.scalars(select(Milestone).where(Milestone.job_card_id==milestone.job_card_id))}
+    for previous_code in sequence[:sequence.index(code)]:
+        previous=card_milestones.get(previous_code)
+        if not previous or milestone_summary(db,previous)["status"]!="COMPLETED":
+            raise HTTPException(409,f"{previous_code} must be completed and approved by Management before {code} becomes available.")
+
+def _extract_report_text(document:RecordDocument)->str:
+    path=STORAGE_ROOT/document.storage_key
+    if not path.is_file():
+        raise HTTPException(409,f"The approved source report {document.file_name} is missing from document storage.")
+    try:
+        with ZipFile(path) as package:
+            if document.file_name.lower().endswith(".docx"):
+                import xml.etree.ElementTree as ET
+                root=ET.fromstring(package.read("word/document.xml"))
+                return " ".join(value for value in root.itertext() if value.strip())[:20000]
+            if document.file_name.lower().endswith(".xlsx"):
+                import xml.etree.ElementTree as ET
+                shared=[]
+                if "xl/sharedStrings.xml" in package.namelist():
+                    shared=["".join(item.itertext()) for item in ET.fromstring(package.read("xl/sharedStrings.xml"))]
+                rows=[]
+                for name in sorted(item for item in package.namelist() if re.fullmatch(r"xl/worksheets/sheet\d+\.xml",item)):
+                    root=ET.fromstring(package.read(name))
+                    for row in root.iter("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row"):
+                        values=[]
+                        for cell in row:
+                            value=cell.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v")
+                            if value is not None and value.text:
+                                values.append(shared[int(value.text)] if cell.attrib.get("t")=="s" and value.text.isdigit() and int(value.text)<len(shared) else value.text)
+                        if values: rows.append(" | ".join(values))
+                return "\n".join(rows)[:20000]
+    except (OSError, KeyError, ValueError, IndexError):
+        raise HTTPException(422,f"Could not read the approved source report {document.file_name}.") from None
+    return document.remarks or "No readable report text was found."
+
+@app.get("/api/ai-reporting/status")
+def ai_reporting_status(user:Annotated[User,Depends(require(Role.ADMIN))]):
+    return ai_reports.configuration_status()
+
+@app.post("/api/milestones/{milestone_id}/ai-final-report",response_model=RecordDocumentOut,status_code=201)
+def create_ai_milestone_report(milestone_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
+    milestone=db.get(Milestone,milestone_id)
+    if not milestone: raise HTTPException(404,"Milestone not found.")
+    card=mutable_card(assigned_card(db,user,milestone.job_card_id))
+    if user.id!=_milestone_report_consultant_id(db,milestone): raise HTTPException(403,"Only the consultant assigned to this milestone can prepare its final report.")
+    _require_milestone_predecessors_completed(db,milestone)
+    if not _milestone_report_ready(db,milestone): raise HTTPException(409,f"Complete all {milestone.code} visits and get Admin approval for its activities and evidence before generating the final report.")
+    report_type=_milestone_report_type(milestone.code)
+    active=db.scalar(select(RecordDocument.id).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED")),RecordDocument.deleted_at.is_(None)).limit(1))
+    if active: raise HTTPException(409,"A milestone final report already exists. Open the existing report or ask Admin to return it for revision.")
+    title=f"{card.number} {milestone.code} Final Report"
+    text=ai_reports.draft_report(title=title,source=_milestone_report_source(db,milestone,card),instructions=f"Prepare a concise, evidence-based final milestone report for {milestone.code} {milestone.name}. Include project context, objectives, activities performed, visit-wise work, findings, recommendations, outcomes, and limitations. Use no unsupported claims.")
+    access=_google_access_for_user(db,user.id)
+    google_file=google_workspace.create_file(access,title,"DOCUMENT")
+    try: google_workspace.write_document_text(access,google_file["id"],text)
+    except Exception:
+        try: google_workspace.delete_file(access,google_file["id"])
+        except Exception: pass
+        raise
+    filename,mime,content,draft_json=_work_product_file(WorkProductDraftIn(kind="DOCUMENT",title=title,body=text))
+    storage_key=save_file(filename,mime,content)
+    version=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"))) or 0)+1
+    # A RecordDocument has exactly one primary target. The Job Card association
+    # for milestone documents is held in owner_job_card_id; milestone_id is the
+    # target used by the milestone report workflow.
+    document=RecordDocument(owner_job_card_id=card.id,milestone_id=milestone.id,document_type=f"{report_type} - AI Google Doc",file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=version,status="DRAFT",remarks="AI-generated draft. Consultant must verify and submit it for Admin review.",uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=google_file["id"],google_file_url=google_file.get("webViewLink"))
+    db.add(document);db.flush();audit(db,user.id,"AI_MILESTONE_REPORT_CREATED","DOCUMENT",document.id,f"{card.number}; {milestone.code}; model {ai_reports.configuration_status()['model']}");db.commit();db.refresh(document)
+    return document
+
 @app.post("/api/job-cards/{card_id}/google-work-products",response_model=RecordDocumentOut,status_code=201)
 def create_google_work_product(card_id:int,data:GoogleWorkProductCreate,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     card=mutable_card(assigned_card(db,user,card_id));_require_work_payment(db,card)
+    milestone=None
+    if data.milestone_id is not None:
+        milestone=db.get(Milestone,data.milestone_id)
+        if not milestone or milestone.job_card_id!=card.id or milestone.code.upper() not in ("M1","M2","M3"):raise HTTPException(404,"Milestone not found.")
+        if user.id!=_milestone_report_consultant_id(db,milestone):raise HTTPException(403,"Only the consultant assigned to this milestone can create its final report.")
+        _require_work_payment(db,card,milestone)
+        _require_milestone_predecessors_completed(db,milestone)
+        if not _milestone_report_ready(db,milestone):raise HTTPException(409,f"Complete all planned {milestone.code} visits and get Admin approval for its activities and evidence before creating the final report.")
+        report_type=_milestone_report_type(milestone.code)
+        existing_report=db.scalar(select(RecordDocument.id).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED")),RecordDocument.deleted_at.is_(None)).limit(1))
+        if existing_report:raise HTTPException(409,f"A {milestone.code} final report is already in progress. Continue with the existing report.")
     if data.activity_id is not None:
         activity=db.get(JobActivity,data.activity_id)
         if not activity or activity.job_card_id!=card.id or activity.assigned_user_id!=user.id: raise HTTPException(404,"Activity not found.")
+        if activity.document_format not in ("EITHER",data.kind):raise HTTPException(422,f"This activity requires a Google {'Document' if activity.document_format=='DOCUMENT' else 'Sheet'}.")
     access=_google_access_for_user(db,user.id)
     created=google_workspace.create_file(access,data.title.strip(),data.kind)
     file_id=str(created.get("id", ""));url=str(created.get("webViewLink", ""))
@@ -3612,9 +3865,11 @@ def create_google_work_product(card_id:int,data:GoogleWorkProductCreate,db:DB,us
     filename,mime,content,draft_json=_work_product_file(WorkProductDraftIn(kind=data.kind,title=data.title.strip()))
     try: storage_key=save_file(filename,mime,content)
     except ValueError as exc: raise HTTPException(422,str(exc))
-    document_type=f"Google {'Document' if data.kind=='DOCUMENT' else 'Sheet'}: {data.title.strip()}"[:80]
-    prior=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type==document_type)) or 0)
-    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id,activity_id=data.activity_id,document_type=document_type,file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=prior+1,status="DRAFT",remarks=draft_json,uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=file_id,google_file_url=url)
+    document_type=(f"{_milestone_report_type(milestone.code)} - Google {'Doc' if data.kind=='DOCUMENT' else 'Sheet'}" if milestone else f"Google {'Document' if data.kind=='DOCUMENT' else 'Sheet'}: {data.title.strip()}")[:80]
+    prior_query=select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type==document_type)
+    if milestone:prior_query=select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{_milestone_report_type(milestone.code)}%"))
+    prior=int(db.scalar(prior_query) or 0)
+    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id if milestone is None else None,milestone_id=milestone.id if milestone else None,activity_id=data.activity_id,document_type=document_type,file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=prior+1,status="DRAFT",remarks=draft_json,uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=file_id,google_file_url=url)
     db.add(document);db.flush();audit(db,user.id,"GOOGLE_WORK_PRODUCT_CREATED","DOCUMENT",document.id,f"{document_type}; google file {file_id}");db.commit();db.refresh(document)
     return document
 
@@ -3622,6 +3877,7 @@ def create_google_work_product(card_id:int,data:GoogleWorkProductCreate,db:DB,us
 def create_google_work_product_from_reference(activity_id:int,data:GoogleReferenceWorkProductCreate,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
     activity=db.get(JobActivity,activity_id)
     if not activity or activity.assigned_user_id!=user.id: raise HTTPException(404,"Activity not found.")
+    if activity.document_format=="SHEET":raise HTTPException(422,"This activity requires a Google Sheet. Create a blank Sheet instead of using a Word document reference.")
     card=mutable_card(assigned_card(db,user,activity.job_card_id));_require_work_payment(db,card)
     compatible={ref["id"] for ref in _job_activity_out(db,activity).reference_documents}
     if data.reference_document_id not in compatible: raise HTTPException(404,"This reference is not assigned to the activity.")
@@ -3647,7 +3903,7 @@ def create_google_work_product_from_reference(activity_id:int,data:GoogleReferen
 
 def _sync_google_work_product(db:Session,document:RecordDocument,user:User,actor:User|None=None)->str:
     if document.editor_provider!="GOOGLE" or not document.google_file_id: raise HTTPException(409,"This document is not linked to Google Docs or Sheets.")
-    kind="SHEET" if document.document_type.startswith("Google Sheet:") else "DOCUMENT"
+    kind="SHEET" if document.document_type.startswith("Google Sheet:") or "Google Sheet" in document.document_type or document.mime_type=="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" else "DOCUMENT"
     content,mime=google_workspace.export_file(_google_access_for_user(db,user.id),document.google_file_id,kind)
     if len(content)>MAX_BYTES: raise HTTPException(413,"Each file must be smaller than 1 GB.")
     extension=".xlsx" if kind=="SHEET" else ".docx"
@@ -3771,28 +4027,32 @@ def review_document(document_id:int,data:DocumentReview,db:DB,user:Annotated[Use
     previous=document.status
     document.status=data.decision; document.remarks=data.comment;document.reviewed_by=user.id;document.reviewed_at=datetime.now(timezone.utc); audit(db,user.id,f"DOCUMENT_{data.decision}","DOCUMENT",document.id,f"status:{previous}->{data.decision}; comment:{data.comment}"); owner=document_owner(db,document.job_card_id); notify(db,owner,f"Your {document.document_type} was {data.decision.lower()}. {data.comment}",f"/job-cards/{document.job_card_id}"); db.commit(); db.refresh(document); return document
 
-STAGES=("CONSULTANT_CONFIRMATION","DIRECTOR_REVIEW")
-STAGE_ROLES={"CONSULTANT_CONFIRMATION":Role.END_USER,"DIRECTOR_REVIEW":Role.DIRECTOR}
+STAGES=("CONSULTANT_CONFIRMATION","MANAGEMENT_REVIEW")
+STAGE_ROLES={"CONSULTANT_CONFIRMATION":Role.END_USER,"MANAGEMENT_REVIEW":Role.MANAGEMENT}
 def required_documents_ready(db:Session,card_id:int):
     for document_type in ("Case Study","Technology Recommendation"):
         latest=db.scalar(select(Document).where(Document.job_card_id==card_id,Document.document_type==document_type,Document.deleted_at==None).order_by(Document.version.desc(),Document.id.desc()).limit(1))
         if not latest or latest.status!="APPROVED": return False
     return True
+def project_closure_report_approved(db:Session,card_id:int)->bool:
+    report=db.scalar(select(RecordDocument).where(RecordDocument.job_card_id==card_id,RecordDocument.document_type=="AI Project Closure",RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1))
+    return bool(report and report.status=="APPROVED" and report.remarks=="Admin and Management approved the project closure report.")
 def milestones_complete(db:Session,card_id:int):
     items=list(db.scalars(select(Milestone).where(Milestone.job_card_id==card_id)))
     return bool(items) and all(milestone_summary(db,item)["status"]=="COMPLETED" for item in items)
 def approval_owner(db:Session,card:JobCard,stage:str):
     if stage=="CONSULTANT_CONFIRMATION": return document_owner(db,card.id)
-    return card.director_id
+    return None
 @app.post("/api/job-cards/{card_id}/approvals/{stage}",response_model=ApprovalOut,status_code=201)
 def decide_approval(card_id:int,stage:str,data:ApprovalAction,db:DB,user:Annotated[User,Depends(current_user)]):
     if stage not in STAGES: raise HTTPException(422,"Invalid approval stage.")
     card=mutable_card(assigned_card(db,user,card_id))
-    if user.role!=STAGE_ROLES[stage] or user.id!=approval_owner(db,card,stage): raise HTTPException(403,"You are not the assigned approver for this stage.")
+    if user.role!=STAGE_ROLES[stage] or (stage=="CONSULTANT_CONFIRMATION" and user.id!=approval_owner(db,card,stage)): raise HTTPException(403,"You are not authorized to approve this stage.")
     if stage=="CONSULTANT_CONFIRMATION":
         if data.decision!="APPROVED": raise HTTPException(422,"Consultant confirmation can only confirm the submission.")
         _require_all_project_payments(db,card)
         if not milestones_complete(db,card_id) or not required_documents_ready(db,card_id): raise HTTPException(422,"All milestones and required approved documents are needed before consultant confirmation.")
+        if not project_closure_report_approved(db,card_id): raise HTTPException(422,"The AI project closure report must be approved by Admin and Management before consultant confirmation.")
     current_cycle=int(db.scalar(select(func.coalesce(func.max(Approval.cycle),0)).where(Approval.job_card_id==card_id)) or 0) or 1
     if stage=="CONSULTANT_CONFIRMATION" and db.scalar(select(Approval.id).where(Approval.job_card_id==card_id,Approval.cycle==current_cycle,Approval.stage==stage)) and card.status in ("REJECTED","IN_PROGRESS"): current_cycle+=1
     previous=STAGES.index(stage)-1
@@ -3800,15 +4060,16 @@ def decide_approval(card_id:int,stage:str,data:ApprovalAction,db:DB,user:Annotat
     if db.scalar(select(Approval).where(Approval.job_card_id==card_id,Approval.cycle==current_cycle,Approval.stage==stage)): raise HTTPException(409,"This approval stage has already been decided in the current review cycle.")
     if data.decision=="REJECTED" and not data.comment: raise HTTPException(422,"A rejection reason is required.")
     approval=Approval(job_card_id=card_id,cycle=current_cycle,stage=stage,decision=data.decision,comment=data.comment,decided_by=user.id); db.add(approval)
-    card.status="REJECTED" if data.decision=="REJECTED" else ("CLOSURE_PENDING" if stage=="DIRECTOR_REVIEW" else "PENDING_APPROVAL")
+    card.status="REJECTED" if data.decision=="REJECTED" else ("CLOSURE_PENDING" if stage=="MANAGEMENT_REVIEW" else "PENDING_APPROVAL")
     db.flush(); audit(db,user.id,f"APPROVAL_{data.decision}","APPROVAL",approval.id,stage)
     if data.decision=="REJECTED":
         notify(db,document_owner(db,card_id),f"{stage.replace('_',' ').title()} rejected Job Card {card.number}. {data.comment}",f"/job-cards/{card_id}")
     elif stage=="CONSULTANT_CONFIRMATION":
-        notify(db,approval_owner(db,card,"DIRECTOR_REVIEW"),f"Director approval is required for Job Card {card.number}.",f"/job-cards/{card_id}")
+        for manager in db.scalars(select(User).where(User.role==Role.MANAGEMENT,User.status==AccountStatus.ACTIVE)):
+            notify(db,manager.id,f"Management final approval is required for Job Card {card.number}.",f"/management/approvals?card={card_id}")
     else:
-        notify(db,document_owner(db,card_id),f"Job Card {card.number} received Director approval and is ready for closure activities.",f"/job-cards/{card_id}")
-        notify(db,card.created_by,f"Job Card {card.number} received final Director approval and is awaiting client closure records.",f"/job-cards/{card_id}")
+        notify(db,document_owner(db,card_id),f"Job Card {card.number} received Management final approval and is ready for closure activities.",f"/job-cards/{card_id}")
+        notify(db,card.created_by,f"Job Card {card.number} received Management final approval and is awaiting client closure records.",f"/job-cards/{card_id}")
     db.commit(); db.refresh(approval); return approval
 
 @app.get("/api/job-cards/{card_id}/approvals",response_model=list[ApprovalOut])
@@ -4063,13 +4324,22 @@ def upload_record_document(record_type:str,record_id:str,data:RecordDocumentUplo
     kind,column,key,row,owner_card_id=resolve_record_document_target(db,user,record_type,record_id)
     if user.role==Role.FINANCE and kind!="PAYMENT": raise HTTPException(403,"Finance can only attach payment evidence.")
     if kind=="PAYMENT" and user.role!=Role.FINANCE: raise HTTPException(403,"Only Finance can attach payment documents.")
+    if kind=="MILESTONE" and re.match(r"^M[123] Final Report(?:\b|\s)",data.document_type):
+        if user.role!=Role.END_USER or data.status!="DRAFT" or row.code.upper() not in ("M1","M2","M3"):raise HTTPException(403,"Only the lead consultant can upload a milestone final report draft.")
+        if Path(data.file_name).suffix.lower() not in (".docx",".xlsx"):raise HTTPException(422,"Upload the final report as a Word (.docx) or Excel (.xlsx) file.")
+        if user.id!=_milestone_report_consultant_id(db,row):raise HTTPException(403,"Only the consultant assigned to this milestone can submit its final report.")
+        _require_milestone_predecessors_completed(db,row)
+        if not _milestone_report_ready(db,row):raise HTTPException(409,f"Complete all planned {row.code} visits and get Admin approval for the required activities and evidence before uploading the final report.")
+        report_type=_milestone_report_type(row.code)
+        active_report=db.scalar(select(RecordDocument.id).where(RecordDocument.milestone_id==row.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED")),RecordDocument.deleted_at.is_(None)).limit(1))
+        if active_report:raise HTTPException(409,f"A {row.code} final report is already in progress.")
     if user.role not in (Role.ADMIN,Role.MANAGEMENT,Role.END_USER,Role.FINANCE): raise HTTPException(403,"You cannot upload documents to this record.")
     if data.status=="DRAFT" and user.role!=Role.END_USER: raise HTTPException(403,"Only consultants can save consultant document drafts.")
     if kind=="VISIT" and data.document_type=="Consultant Visit Report":
         if user.role!=Role.END_USER or data.status!="SUBMITTED": raise HTTPException(403,"Only consultants can submit visit reports for approval.")
         planned=db.get(PlannedVisit,row.planned_visit_id) if row.planned_visit_id else None
         if not planned or planned.status!="COMPLETED" or user.id not in (planned.consultant_id,planned.co_consultant_id,planned.subject_expert_id): raise HTTPException(409,"The visit plan must be completed and assigned to you before submitting its report.")
-        tasks=list(db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned.id)))
+        tasks=list(db.scalars(select(JobActivity).where(JobActivity.planned_visit_id==planned.id,JobActivity.status!="CANCELLED")))
         if not tasks or any(task.status!="COMPLETED" or not db.scalar(select(JobActivityAttachment.id).where(JobActivityAttachment.activity_id==task.id)) for task in tasks): raise HTTPException(409,"Complete every required visit task and attach its evidence before submitting the report.")
         pending=db.scalar(select(RecordDocument.id).where(RecordDocument.visit_id==row.id,RecordDocument.document_type=="Consultant Visit Report",RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED"))).limit(1))
         if pending: raise HTTPException(409,"A report for this visit is already submitted or approved.")
@@ -4096,6 +4366,18 @@ def submit_record_document(document_id:int,db:DB,user:Annotated[User,Depends(req
     synced_old_key=None
     if document.owner_job_card_id:
         card=mutable_card(assigned_card(db,user,document.owner_job_card_id));milestone=db.get(Milestone,document.milestone_id) if document.milestone_id else None;_require_work_payment(db,card,milestone)
+    if _is_milestone_final_report(document):
+        milestone=db.get(Milestone,document.milestone_id)
+        if not milestone or milestone.code.upper() not in ("M1","M2","M3"):raise HTTPException(409,"This report is not linked to an M1, M2, or M3 milestone.")
+        if user.id!=_milestone_report_consultant_id(db,milestone):raise HTTPException(403,"Only the consultant assigned to this milestone can submit its final report.")
+        _require_milestone_predecessors_completed(db,milestone)
+        if not _milestone_report_ready(db,milestone):raise HTTPException(409,f"Complete {milestone.code} and get Admin approval for its activities and evidence before submitting the final report.")
+        history=milestone_review_events(db,milestone.id);cycle=max((event.cycle for event in history),default=0);current=[event for event in history if event.cycle==cycle]
+        returned=any(event.stage in ("ADMIN","MANAGEMENT") and event.decision in ("RETURNED","REJECTED") for event in current)
+        if any(event.stage=="CONSULTANT" and event.decision=="SUBMITTED" for event in current) and not returned:raise HTTPException(409,"The M1 final report has already been submitted for this review cycle.")
+        if not current:cycle=1
+        elif returned:cycle+=1
+        if not any(event.stage=="CONSULTANT" and event.cycle==cycle for event in history):milestone_review_record(db,milestone,cycle,"CONSULTANT","SUBMITTED",None,user)
     if document.editor_provider=="PORTAL":
         synced_old_key=_finalize_native_work_product(document)
     elif document.editor_provider=="GOOGLE":
@@ -4106,6 +4388,13 @@ def submit_record_document(document_id:int,db:DB,user:Annotated[User,Depends(req
     if document.owner_job_card_id:
         owner=document_owner(db,document.owner_job_card_id) or card_created_by(db,document.owner_job_card_id)
         if owner and owner!=user.id: notify(db,owner,f"{document.document_type} was submitted for review.",f"/job-cards/{document.owner_job_card_id}")
+    if _is_milestone_final_report(document):
+        card=db.get(JobCard,document.owner_job_card_id);milestone=db.get(Milestone,document.milestone_id)
+        for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+            notify(db,admin.id,f"{milestone.code} final report for {card.number} was submitted and is awaiting Admin review.",f"/admin/documents?document={document.id}")
+    if document.document_type=="AI Project Closure":
+        for admin in db.scalars(select(User).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE)):
+            notify(db,admin.id,f"Project closure report for {card.number if card else 'Job Card'} is awaiting Admin review.",f"/admin/documents?document={document.id}")
     db.commit();db.refresh(document)
     if synced_old_key:
         old_path=STORAGE_ROOT/synced_old_key
@@ -4124,6 +4413,25 @@ def review_record_document(document_id:int,data:RecordDocumentReview,db:DB,user:
         latest_id=db.scalar(select(RecordDocument.id).where(getattr(RecordDocument,target_column)==getattr(document,target_column),RecordDocument.document_type==document.document_type,RecordDocument.status.in_(("SUBMITTED","UNDER_REVIEW")),RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1))
         if latest_id!=document.id: raise HTTPException(409,"Only the latest document version can be reviewed.")
     document.status=data.decision;document.remarks=data.comment;document.reviewed_by=user.id;document.reviewed_at=datetime.now(timezone.utc);audit(db,user.id,f"RECORD_DOCUMENT_{data.decision}","DOCUMENT",document.id,data.comment)
+    if data.decision=="APPROVED" and document.activity_id:
+        activity=db.get(JobActivity,document.activity_id)
+        if activity:
+            if activity.planned_visit_id:
+                planned=db.get(PlannedVisit,activity.planned_visit_id)
+                if planned:finish_approved_visit_deliverables(db,planned,user)
+    if _is_milestone_final_report(document):
+        milestone=db.get(Milestone,document.milestone_id)
+        if milestone and milestone.code.upper() in ("M1","M2","M3"):
+            history=milestone_review_events(db,milestone.id);cycle=max((event.cycle for event in history),default=1);current=[event for event in history if event.cycle==cycle]
+            if data.decision in ("APPROVED","RETURNED","REJECTED") and not any(event.stage=="ADMIN" for event in current):milestone_review_record(db,milestone,cycle,"ADMIN",data.decision,data.comment,user)
+            if data.decision=="APPROVED":
+                card=db.get(JobCard,milestone.job_card_id)
+                for manager in db.scalars(select(User).where(User.role==Role.MANAGEMENT,User.status==AccountStatus.ACTIVE)):
+                    notify(db,manager.id,f"Admin approved the {milestone.code} final report for {card.number}. It is ready for your final approval.",f"/management/reviews?milestone={milestone.id}")
+    if document.document_type=="AI Project Closure" and data.decision=="APPROVED":
+        card=db.get(JobCard,document.job_card_id)
+        for manager in db.scalars(select(User).where(User.role==Role.MANAGEMENT,User.status==AccountStatus.ACTIVE)):
+            notify(db,manager.id,f"Admin approved the project closure report for {card.number if card else 'Job Card'}. It is ready for Management review.","/management/reviews")
     if document.owner_job_card_id:
         owner=document_owner(db,document.owner_job_card_id) or card_created_by(db,document.owner_job_card_id)
         if owner: notify(db,owner,f"{document.document_type} was {data.decision.lower()}: {data.comment}",f"/job-cards/{document.owner_job_card_id}")
@@ -4199,10 +4507,77 @@ def get_project_closure(card_id:int,db:DB,user:Annotated[User,Depends(current_us
     if not item: raise HTTPException(404,"Closure record has not been prepared.")
     return item
 
+@app.post("/api/job-cards/{card_id}/closure/ai-document",response_model=RecordDocumentOut,status_code=201)
+def create_ai_project_closure_document(card_id:int,db:DB,user:Annotated[User,Depends(require(Role.END_USER))]):
+    card=mutable_card(assigned_card(db,user,card_id))
+    if user.id!=document_owner(db,card.id): raise HTTPException(403,"Only the assigned lead consultant can prepare the project closure report.")
+    milestones={milestone.code.upper():milestone for milestone in db.scalars(select(Milestone).where(Milestone.job_card_id==card.id))}
+    source_reports=[]
+    for code in ("M1","M2","M3"):
+        milestone=milestones.get(code)
+        if not milestone or milestone.status!="COMPLETED": raise HTTPException(409,f"{code} must receive Management's final approval before the project closure report can be created.")
+        report_type=_milestone_report_type(code)
+        report=db.scalar(select(RecordDocument).where(RecordDocument.milestone_id==milestone.id,RecordDocument.document_type.like(f"{report_type}%"),RecordDocument.status=="APPROVED",RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.uploaded_at.desc(),RecordDocument.id.desc()).limit(1))
+        if not report: raise HTTPException(409,f"The approved {code} final report is missing. Complete its Admin and Management approvals first.")
+        events=milestone_review_events(db,milestone.id)
+        current_cycle=max((event.cycle for event in events),default=0)
+        if not any(event.stage=="MANAGEMENT" and event.decision=="APPROVED" and event.cycle==current_cycle for event in events): raise HTTPException(409,f"Management's approval of the {code} final report is required before project closure.")
+        source_reports.append({"milestone":code,"report_file":report.file_name,"approved_report_text":_extract_report_text(report)})
+    existing=db.scalar(select(RecordDocument.id).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type=="AI Project Closure",RecordDocument.status.in_(("DRAFT","SUBMITTED","UNDER_REVIEW","APPROVED")),RecordDocument.deleted_at.is_(None)).limit(1))
+    if existing: raise HTTPException(409,"A project closure report already exists. Continue with the existing document or ask Admin to return it for revision.")
+    client=db.get(MSME,card.msme_id)
+    source=json.dumps({"job_card":card.number,"client":client.name if client else None,"industry":client.industry if client else None,"location":card.location,"project":card.project_name,"scope":card.scope,"milestone_reports":source_reports},ensure_ascii=False)
+    title=f"{card.number} Project Closure Report"
+    text=ai_reports.draft_report(title=title,source=source,instructions="Synthesize the three approved milestone final reports into a project closure report. Include executive summary, original objectives and scope, work by milestone, consolidated outcomes, evidence-based benefits, unresolved limitations or follow-up actions, and conclusion. Preserve source facts and clearly distinguish reported outcomes from recommendations. Do not invent client feedback or quantitative results.")
+    access=_google_access_for_user(db,user.id)
+    google_file=google_workspace.create_file(access,title,"DOCUMENT")
+    try: google_workspace.write_document_text(access,google_file["id"],text)
+    except Exception:
+        try: google_workspace.delete_file(access,google_file["id"])
+        except Exception: pass
+        raise
+    filename,mime,content,_=_work_product_file(WorkProductDraftIn(kind="DOCUMENT",title=title,body=text))
+    storage_key=save_file(filename,mime,content)
+    version=int(db.scalar(select(func.coalesce(func.max(RecordDocument.version),0)).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type=="AI Project Closure")) or 0)+1
+    document=RecordDocument(owner_job_card_id=card.id,job_card_id=card.id,document_type="AI Project Closure",file_name=filename,storage_key=storage_key,file_size=len(content),mime_type=mime,version=version,status="DRAFT",remarks="AI-generated draft based on the approved M1, M2, and M3 reports. Consultant must verify it before submitting for review.",uploaded_by=user.id,editor_provider="GOOGLE",google_file_id=google_file["id"],google_file_url=google_file.get("webViewLink"))
+    db.add(document);db.flush();audit(db,user.id,"AI_PROJECT_CLOSURE_REPORT_CREATED","DOCUMENT",document.id,card.number);db.commit();db.refresh(document);return document
+
+@app.get("/api/management/closure-report-queue")
+def management_closure_report_queue(db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT))]):
+    rows=[]
+    for document in db.scalars(select(RecordDocument).where(RecordDocument.document_type=="AI Project Closure",RecordDocument.status=="APPROVED",RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.uploaded_at)):
+        card=db.get(JobCard,document.job_card_id)
+        if not card or card.deleted_at: continue
+        assigned_card(db,user,card.id)
+        latest_decision=db.scalar(select(Approval).where(Approval.job_card_id==card.id,Approval.stage=="PROJECT_CLOSURE").order_by(Approval.cycle.desc(),Approval.id.desc()).limit(1))
+        if latest_decision and latest_decision.decision=="APPROVED": continue
+        rows.append({"job_card_id":card.id,"job_card_number":card.number,"document_id":document.id,"file_name":document.file_name,"google_file_url":document.google_file_url,"submitted_at":document.reviewed_at or document.uploaded_at,"version":document.version})
+    return rows
+
+@app.post("/api/job-cards/{card_id}/closure/report-review",response_model=ApprovalOut,status_code=201)
+def review_ai_project_closure_report(card_id:int,data:MilestoneReviewDecision,db:DB,user:Annotated[User,Depends(require(Role.MANAGEMENT))]):
+    card=assigned_card(db,user,card_id)
+    document=db.scalar(select(RecordDocument).where(RecordDocument.job_card_id==card.id,RecordDocument.document_type=="AI Project Closure",RecordDocument.deleted_at.is_(None)).order_by(RecordDocument.version.desc(),RecordDocument.id.desc()).limit(1))
+    if not document or document.status!="APPROVED": raise HTTPException(409,"Admin must approve the latest project closure report before Management can review it.")
+    latest_decision=db.scalar(select(Approval).where(Approval.job_card_id==card.id,Approval.stage=="PROJECT_CLOSURE").order_by(Approval.cycle.desc(),Approval.id.desc()).limit(1))
+    if latest_decision and latest_decision.decision=="APPROVED": raise HTTPException(409,"Management has already approved this project closure report.")
+    if data.decision in ("RETURNED","REJECTED") and not (data.comment and data.comment.strip()): raise HTTPException(422,"A reason is required when returning or rejecting the closure report.")
+    cycle=(latest_decision.cycle+1) if latest_decision else 1
+    approval=Approval(job_card_id=card.id,stage="PROJECT_CLOSURE",cycle=cycle,decision=data.decision,comment=data.comment,decided_by=user.id)
+    db.add(approval)
+    if data.decision in ("RETURNED","REJECTED"):
+        document.status="RETURNED";document.remarks=data.comment
+        notify(db,document.uploaded_by,f"Management returned the project closure report for {card.number}: {data.comment}. Revise and resubmit it for Admin review.",f"/user/job-cards?card={card.id}")
+    else:
+        document.remarks="Admin and Management approved the project closure report."
+        notify(db,document.uploaded_by,f"Management approved the project closure report for {card.number}.",f"/user/job-cards?card={card.id}")
+    audit(db,user.id,f"PROJECT_CLOSURE_REPORT_{data.decision}","DOCUMENT",document.id,data.comment or "")
+    db.commit();db.refresh(approval);return approval
+
 @app.put("/api/job-cards/{card_id}/closure",response_model=ClosureOut)
 def prepare_project_closure(card_id:int,data:ClosureUpsert,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
     card=assigned_card(db,user,card_id)
-    if card.status in ("CLOSURE_PENDING","COMPLETED","CANCELLED"): raise HTTPException(409,"Closure records must be prepared before final director approval; this Job Card is already locked or cancelled.")
+    if card.status in ("CLOSURE_PENDING","COMPLETED","CANCELLED"): raise HTTPException(409,"Closure records must be prepared before Management final approval; this Job Card is already locked or cancelled.")
     item=db.scalar(select(ProjectClosure).where(ProjectClosure.job_card_id==card_id))
     values=data.model_dump()
     if item and item.closed_at: raise HTTPException(409,"Closed project records cannot be edited.")
@@ -4218,7 +4593,8 @@ def prepare_project_closure(card_id:int,data:ClosureUpsert,db:DB,user:Annotated[
 @app.post("/api/job-cards/{card_id}/closure/complete",response_model=ClosureOut)
 def complete_project_closure(card_id:int,db:DB,user:Annotated[User,Depends(require(Role.ADMIN))]):
     card=assigned_card(db,user,card_id)
-    if card.status!="CLOSURE_PENDING": raise HTTPException(409,"Director approval is required before project closure.")
+    if card.status!="CLOSURE_PENDING": raise HTTPException(409,"Management final approval is required before project closure.")
+    if not project_closure_report_approved(db,card.id): raise HTTPException(409,"Admin and Management must approve the AI project closure report before the project can be closed.")
     item=db.scalar(select(ProjectClosure).where(ProjectClosure.job_card_id==card_id))
     if not item or not all((item.client_confirmation,item.problem,item.requirement,item.solution,item.implementation,item.benefits,item.results,item.feedback,item.feedback_rating)):
         raise HTTPException(422,"Client confirmation, complete case study, and client feedback are required before closure.")

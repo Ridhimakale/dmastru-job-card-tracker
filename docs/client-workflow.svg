@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2220" viewBox="0 0 1600 2220" role="img" aria-labelledby="title description">
+  <title id="title">D’Mastru Job Card Tracker — Client Workflow</title>
+  <desc id="description">End-to-end project workflow showing client enquiry, onboarding, milestone payment gates, consultant delivery, Admin review, Management approvals, separate QCI invoices, and project closure.</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#173254" flood-opacity=".10"/></filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#8193ad"/></marker>
+    <style>
+      text{font-family:Inter,'Segoe UI',Arial,sans-serif;fill:#162b49}.title{font-size:44px;font-weight:750;letter-spacing:-.5px}.subtitle{font-size:21px;fill:#62748e}.section{font-size:18px;font-weight:750;letter-spacing:1.4px;fill:#71829a}.step-title{font-size:22px;font-weight:700}.body{font-size:17px;fill:#536780}.small{font-size:15px;fill:#667a94}.pill{font-size:14px;font-weight:750;letter-spacing:.7px}.box{filter:url(#shadow)}.arrow{stroke:#8193ad;stroke-width:4;fill:none;marker-end:url(#arrow);stroke-linecap:round}.side-line{stroke:#9eacc0;stroke-width:3;fill:none;marker-end:url(#arrow);stroke-dasharray:8 8}
+    </style>
+  </defs>
+  <rect width="1600" height="2220" fill="#f4f7fb"/>
+  <rect x="0" y="0" width="1600" height="190" fill="#10233f"/>
+  <text x="90" y="82" class="title" fill="#ffffff">D’Mastru Job Card Tracker</text>
+  <text x="92" y="132" font-size="23" fill="#d9e5f4">Client project workflow · from first enquiry to completion certificate</text>
+
+  <text x="95" y="242" class="section">PROJECT DELIVERY</text>
+  <line x1="95" y1="260" x2="1505" y2="260" stroke="#dbe4ef" stroke-width="2"/>
+
+  <!-- Main process spine -->
+  <path class="arrow" d="M800 365V405"/><path class="arrow" d="M800 505V545"/><path class="arrow" d="M800 650V690"/>
+  <path class="arrow" d="M800 800V850"/><path class="arrow" d="M800 955V1000"/><path class="arrow" d="M800 1110V1155"/>
+  <path class="arrow" d="M800 1265V1310"/><path class="arrow" d="M800 1420V1465"/><path class="arrow" d="M800 1575V1620"/>
+  <path class="arrow" d="M800 1730V1775"/><path class="arrow" d="M800 1885V1930"/>
+
+  <!-- Step 1 -->
+  <g class="box"><rect x="310" y="280" width="980" height="85" rx="20" fill="#eaf1ff" stroke="#bdd0f7" stroke-width="2"/></g>
+  <rect x="335" y="299" width="145" height="28" rx="14" fill="#4066b1"/><text x="407" y="319" text-anchor="middle" class="pill" fill="#fff">MARKETING</text>
+  <text x="505" y="319" class="step-title">1. Record the client enquiry</text><text x="505" y="347" class="body">Capture the client, their needs, and the requested service.</text>
+
+  <!-- Step 2 -->
+  <g class="box"><rect x="310" y="405" width="980" height="100" rx="20" fill="#f0ecff" stroke="#cec2fa" stroke-width="2"/></g>
+  <rect x="335" y="425" width="145" height="28" rx="14" fill="#7452bd"/><text x="407" y="445" text-anchor="middle" class="pill" fill="#fff">MANAGEMENT</text>
+  <text x="505" y="445" class="step-title">2. Review and approve the enquiry</text><text x="505" y="476" class="body">Approved enquiries move forward to client discussion and onboarding.</text>
+
+  <!-- Step 3 -->
+  <g class="box"><rect x="310" y="545" width="980" height="105" rx="20" fill="#e9f7f2" stroke="#b8e4d2" stroke-width="2"/></g>
+  <rect x="335" y="565" width="145" height="28" rx="14" fill="#31866c"/><text x="407" y="585" text-anchor="middle" class="pill" fill="#fff">ADMIN</text>
+  <text x="505" y="585" class="step-title">3. Brief the client and onboard</text><text x="505" y="616" class="body">Schedule the discussion, save evidence and the client’s decision, then create the Job Card.</text>
+
+  <!-- Step 4 -->
+  <g class="box"><rect x="310" y="690" width="980" height="110" rx="20" fill="#fff5e8" stroke="#f1d2a4" stroke-width="2"/></g>
+  <rect x="335" y="710" width="145" height="28" rx="14" fill="#c17b22"/><text x="407" y="730" text-anchor="middle" class="pill" fill="#fff">FINANCE</text>
+  <text x="505" y="730" class="step-title">4. Confirm the client’s payment to QCI</text><text x="505" y="761" class="body">Finance confirms payment for the next milestone. This unlocks the work for assignment.</text>
+
+  <!-- Step 5 -->
+  <g class="box"><rect x="310" y="850" width="980" height="105" rx="20" fill="#e9f7f2" stroke="#b8e4d2" stroke-width="2"/></g>
+  <rect x="335" y="870" width="145" height="28" rx="14" fill="#31866c"/><text x="407" y="890" text-anchor="middle" class="pill" fill="#fff">ADMIN</text>
+  <text x="505" y="890" class="step-title">5. Assign the consultant</text><text x="505" y="921" class="body">Admin assigns the consultant after Finance confirms the milestone payment.</text>
+
+  <!-- Step 6 -->
+  <g class="box"><rect x="310" y="1000" width="980" height="110" rx="20" fill="#eaf1ff" stroke="#bdd0f7" stroke-width="2"/></g>
+  <rect x="335" y="1020" width="145" height="28" rx="14" fill="#4066b1"/><text x="407" y="1040" text-anchor="middle" class="pill" fill="#fff">CONSULTANT</text>
+  <text x="505" y="1040" class="step-title">6. Plan visits and deliver the milestone</text><text x="505" y="1071" class="body">Complete the activities, submit visit reports, and attach supporting evidence.</text>
+
+  <!-- Step 7 -->
+  <g class="box"><rect x="310" y="1155" width="980" height="110" rx="20" fill="#e9f7f2" stroke="#b8e4d2" stroke-width="2"/></g>
+  <rect x="335" y="1175" width="145" height="28" rx="14" fill="#31866c"/><text x="407" y="1195" text-anchor="middle" class="pill" fill="#fff">ADMIN</text>
+  <text x="505" y="1195" class="step-title">7. Review activities and evidence</text><text x="505" y="1226" class="body">Approve complete submissions or return items to the consultant for corrections.</text>
+
+  <!-- Step 8 -->
+  <g class="box"><rect x="310" y="1310" width="980" height="110" rx="20" fill="#eaf1ff" stroke="#bdd0f7" stroke-width="2"/></g>
+  <rect x="335" y="1330" width="145" height="28" rx="14" fill="#4066b1"/><text x="407" y="1350" text-anchor="middle" class="pill" fill="#fff">LEAD CONSULTANT</text>
+  <text x="505" y="1350" class="step-title">8. Submit the milestone report</text><text x="505" y="1381" class="body">Once required work and evidence are approved, submit the final milestone report.</text>
+
+  <!-- Step 9 -->
+  <g class="box"><rect x="310" y="1465" width="980" height="110" rx="20" fill="#f0ecff" stroke="#cec2fa" stroke-width="2"/></g>
+  <rect x="335" y="1485" width="145" height="28" rx="14" fill="#7452bd"/><text x="407" y="1505" text-anchor="middle" class="pill" fill="#fff">ADMIN → MANAGEMENT</text>
+  <text x="505" y="1505" class="step-title">9. Review and approve the milestone report</text><text x="505" y="1536" class="body">Admin reviews first; Management gives final approval and completes the milestone.</text>
+
+  <!-- Step 10 -->
+  <g class="box"><rect x="310" y="1620" width="980" height="110" rx="20" fill="#eaf1ff" stroke="#bdd0f7" stroke-width="2"/></g>
+  <rect x="335" y="1640" width="145" height="28" rx="14" fill="#4066b1"/><text x="407" y="1660" text-anchor="middle" class="pill" fill="#fff">REPEAT M1 → M2 → M3</text>
+  <text x="505" y="1660" class="step-title">10. Continue through the next milestone</text><text x="505" y="1691" class="body">Finance confirms its client payment, then Admin assigns work and the delivery cycle repeats.</text>
+
+  <!-- Step 11 -->
+  <g class="box"><rect x="310" y="1775" width="980" height="110" rx="20" fill="#f0ecff" stroke="#cec2fa" stroke-width="2"/></g>
+  <rect x="335" y="1795" width="145" height="28" rx="14" fill="#7452bd"/><text x="407" y="1815" text-anchor="middle" class="pill" fill="#fff">ADMIN → MANAGEMENT</text>
+  <text x="505" y="1815" class="step-title">11. Prepare and approve the closure report</text><text x="505" y="1846" class="body">After M1, M2, and M3 are approved, the lead consultant drafts it; Admin reviews, then Management approves.</text>
+
+  <!-- Step 12 -->
+  <g class="box"><rect x="310" y="1930" width="980" height="100" rx="20" fill="#e9f7f2" stroke="#b8e4d2" stroke-width="2"/></g>
+  <rect x="335" y="1950" width="145" height="28" rx="14" fill="#31866c"/><text x="407" y="1970" text-anchor="middle" class="pill" fill="#fff">ADMIN</text>
+  <text x="505" y="1970" class="step-title">12. Confirm handover and complete the project</text><text x="505" y="2001" class="body">Consultant confirms; Admin records closure details; Management gives final approval; Admin issues the certificate.</text>
+
+  <!-- Finance side note -->
+  <path class="side-line" d="M1290 746H1350V1690H1295"/>
+  <g class="box"><rect x="95" y="2055" width="1410" height="120" rx="22" fill="#fff" stroke="#d9e3ef" stroke-width="2"/></g>
+  <rect x="120" y="2078" width="145" height="28" rx="14" fill="#c17b22"/><text x="192" y="2098" text-anchor="middle" class="pill" fill="#fff">SEPARATE FINANCE TRACK</text>
+  <text x="290" y="2098" class="step-title">D’Mastru invoices to QCI</text>
+  <text x="290" y="2130" class="body">Raise M1 after M2 completes · M2 after M3 completes · M3 after M3 completes.</text>
+  <text x="290" y="2157" class="small">QCI invoice receipts are tracked separately; they do not unlock milestone work.</text>
+</svg>

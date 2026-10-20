@@ -9,7 +9,7 @@ This repository includes `render.yaml` for a Render PostgreSQL database, FastAPI
 3. Enter `VITE_API_URL` as the public API URL, for example `https://dmastru-jobcard-api.onrender.com`. Render builds this value into the frontend, so redeploy the static site whenever it changes.
 4. Once Render shows the static-site URL, set the API's `CORS_ORIGINS` and `PUBLIC_APP_URL` environment variables to that exact URL (no trailing slash), then redeploy the API.
 5. Open the API service shell and provision the first administrator with `python -m app.create_admin --email admin@your-domain.com --name "D'Mastru Admin"`. Enter a unique strong password at the prompt; it is not stored in deployment configuration.
-6. Configure the Google OAuth settings described below, then sign in as that administrator and create the Management, Unit Representative, Director, and consultant accounts needed for the team. A consultant connects their own Google account from the Job Card document area. Verify login, a document upload/download, and a report export.
+6. Configure the Google OAuth settings described below, then sign in as that administrator and create the Management, Unit Representative, and consultant accounts needed for the team. Management handles final approvals. A consultant connects their own Google account from the Job Card document area. Verify login, a document upload/download, and a report export.
 
 Render automatically provides the Postgres connection string and `PORT`; the application converts Render's PostgreSQL URL to the installed psycopg driver format. Keep the generated `JWT_SECRET` unchanged after the first deployment or all existing sessions will be invalidated.
 
