@@ -20,7 +20,7 @@ def upgrade():
     if management_department is not None and director_department is not None:
         op.execute(sa.text("UPDATE users SET department_id=:management WHERE department_id=:director").bindparams(management=management_department, director=director_department))
         op.execute(sa.text("UPDATE departments SET active=:active WHERE id=:id").bindparams(active=False, id=director_department))
-    op.execute(sa.text("UPDATE assignments SET assignment_type='MANAGEMENT' WHERE assignment_type='DIRECTOR'"))
+    op.execute(sa.text("UPDATE job_card_assignments SET assignment_type='MANAGEMENT' WHERE assignment_type='DIRECTOR'"))
     op.execute(sa.text("UPDATE approvals SET stage='MANAGEMENT_REVIEW' WHERE stage='DIRECTOR_REVIEW'"))
     op.execute(sa.text("UPDATE job_cards SET director_id=NULL"))
 
