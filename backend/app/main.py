@@ -1733,7 +1733,41 @@ def bootstrap():
         seed()
     elif ENV=="production":
         disable_demo_accounts()
+        provision_initial_admin()
         ensure_payment_workflows()
+
+def provision_initial_admin():
+    """Create the first production Admin from temporary deployment environment values.
+
+    This supports hosts such as Render Free that do not provide shell access. Remove
+    the three INITIAL_ADMIN_* variables from the host after the first successful login.
+    """
+    db=SessionLocal()
+    try:
+        active_admin=db.scalar(select(User.id).where(User.role==Role.ADMIN,User.status==AccountStatus.ACTIVE).limit(1))
+        if active_admin:
+            return
+        email=os.getenv("INITIAL_ADMIN_EMAIL","").strip().lower()
+        full_name=os.getenv("INITIAL_ADMIN_NAME","").strip()
+        password=os.getenv("INITIAL_ADMIN_PASSWORD","")
+        if not email or not full_name or not password:
+            raise RuntimeError("No active Admin exists. Set INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_NAME, and INITIAL_ADMIN_PASSWORD to provision the first production Admin.")
+        if "@" not in email or len(email)>320 or len(full_name)<2:
+            raise RuntimeError("The initial Admin email or name is invalid.")
+        try:
+            check_password_rules(password)
+        except HTTPException as exc:
+            raise RuntimeError(f"INITIAL_ADMIN_PASSWORD does not meet the password rules: {exc.detail}") from None
+        if db.scalar(select(User.id).where(User.email==email)):
+            raise RuntimeError("INITIAL_ADMIN_EMAIL already belongs to another account. Choose a different email.")
+        user=User(full_name=full_name,email=email,role=Role.ADMIN,status=AccountStatus.ACTIVE,password_hash=passwords.hash(password))
+        db.add(user);db.flush()
+        audit(db,None,"INITIAL_ADMIN_CREATED","USER",user.id,"Provisioned through temporary deployment environment values")
+        db.commit()
+        logger.info("Initial production Admin provisioned: %s",email)
+        os.environ.pop("INITIAL_ADMIN_PASSWORD",None)
+    finally:
+        db.close()
 
 async def _enquiry_sla_monitor():
     interval=max(30,int(os.getenv("SLA_MONITOR_INTERVAL_SECONDS","60")))

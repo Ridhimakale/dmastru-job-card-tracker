@@ -2,26 +2,25 @@
 
 ## Render deployment
 
-This repository includes `render.yaml` for a Render PostgreSQL database, FastAPI web service, and React static site. The API blueprint is configured with a paid Starter service and a persistent 10 GB disk mounted at `/data`; Postgres is configured on the paid `0.1c-256mb` compute plan with 15 GB of storage. These resource choices are required for persistent uploads/database storage and may incur provider charges when the Blueprint is created or synced. Render disks are local to a single service instance; use object storage if you later need multiple API instances or shared file storage.
+`render.yaml` defines a free Render Postgres database, a free Docker API service, and a free static frontend. This is suitable for a demo or trial, not for storing business records long term: free Postgres expires after 30 days and has a 1 GB limit; free web-service files are ephemeral, so uploaded attachments disappear when the API restarts, redeploys, or spins down. The free API also sleeps after inactivity and takes time to wake. Upgrade to paid persistent storage and database before using real client data.
 
-1. Push this project to a GitHub repository (do not commit `.env`, databases, or uploaded files). The Render resources in this blueprint use paid plans and can incur charges.
-2. In Render, select **New +** → **Blueprint**, connect the repository, and accept `render.yaml`.
-3. Enter `VITE_API_URL` as the public API URL, for example `https://dmastru-jobcard-api.onrender.com`. Render builds this value into the frontend, so redeploy the static site whenever it changes.
-4. Once Render shows the static-site URL, set the API's `CORS_ORIGINS` and `PUBLIC_APP_URL` environment variables to that exact URL (no trailing slash), then redeploy the API.
-5. Open the API service shell and provision the first administrator with `python -m app.create_admin --email admin@your-domain.com --name "D'Mastru Admin"`. Enter a unique strong password at the prompt; it is not stored in deployment configuration.
-6. Configure the Google OAuth settings described below, then sign in as that administrator and create the Management, Unit Representative, and consultant accounts needed for the team. Management handles final approvals. A consultant connects their own Google account from the Job Card document area. Verify login, a document upload/download, and a report export.
+1. Push the repository to GitHub (never commit `.env`, database files, uploads, or secrets), then in Render choose **New + → Blueprint** and connect the repository.
+2. When Render requests Blueprint values, provide `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_NAME`, and a strong `INITIAL_ADMIN_PASSWORD` (8+ chars with uppercase, lowercase, number, and special character). The API creates the first Admin on startup because Render Free has no shell access. After confirming Admin login, remove all three `INITIAL_ADMIN_*` variables from the API's Render environment and redeploy. The password is stored as an Argon2 hash in Postgres.
+3. Set `FIELD_ENCRYPTION_KEY` to a Fernet key generated with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Keep it stable: changing it makes previously stored Google OAuth tokens unreadable.
+4. After both services have URLs, set the frontend's `VITE_API_URL` to the API URL (for example `https://dmastru-jobcard-api.onrender.com`). Set the API's `CORS_ORIGINS` and `PUBLIC_APP_URL` to the exact frontend URL (no trailing slash). Redeploy the frontend after changing `VITE_API_URL` and the API after changing its settings.
+5. Optional integrations need their own credentials: set `GROQ_API_KEY` for AI report drafts; set the Google OAuth client ID, secret, and callback URI for Google Docs/Sheets (`https://<API-host>/api/google-workspace/callback`). Enable the Google Drive and Docs APIs in the Google Cloud project and add that callback URL to the OAuth client's authorized redirect URIs. Set SMTP only if the mail provider supports a port Render allows; free web services cannot send outbound traffic on SMTP ports 25, 465, or 587.
+6. Sign in as Admin and create the Management, Unit Representative, consultant, Finance, and other staff accounts. A consultant connects their Google account from the Job Card document area. Confirm `/health` returns success, sign-in works, then try the enabled integrations. File uploads are temporary on the free plan.
 
-Render automatically provides the Postgres connection string and `PORT`; the application converts Render's PostgreSQL URL to the installed psycopg driver format. Keep the generated `JWT_SECRET` unchanged after the first deployment or all existing sessions will be invalidated.
-
+Render supplies the Postgres connection URL and `PORT`; the API normalizes the connection URL for psycopg and binds to Render's assigned port. Keep the generated `JWT_SECRET` unchanged after first deploy or existing sessions will be invalidated. Render's free Postgres is limited to one active free database per workspace and is deleted after its expiry window; export any demo data before expiry.
 ## Production prerequisites
 
 - PostgreSQL 16 with automated encrypted backups.
 - A reverse proxy terminating TLS (for example Nginx, Azure Application Gateway, or AWS ALB).
 - A long random `JWT_SECRET`; never use the Compose sample secret.
 - Set `APP_ENV=production`, `HTTPS_ENABLED=true`, and `CORS_ORIGINS` to exact deployed frontend origins.
-- MFA_REQUIRED=false temporarily skips authenticator OTP after password verification; set it to 	rue when ready to require OTP again. Existing authenticator enrollment is retained.
+- Set `MFA_REQUIRED=true` when ready to require authenticator OTP after password verification. Existing authenticator enrollment is retained.
 - Set `PUBLIC_APP_URL` and SMTP connection values (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_SSL`) to enable password-reset links by email.
-- Persistent storage for uploads. The Render blueprint mounts a persistent disk at `/data`; Docker Compose uses a named `uploads_data` volume. Use shared object storage instead when scaling the API beyond one instance.
+- Persistent storage for uploads. Docker Compose uses a named `uploads_data` volume. The free Render setup uses ephemeral uploads; use a paid persistent disk or object storage before storing real client documents.
 ## Google Docs and Sheets integration
 
 The app creates Google Docs/Sheets files and opens Google's editor. Consultants connect a Google Account using the same email address as their portal account. The email provider does not need to be Google Workspace; a company email can be registered as a Google Account without creating a Gmail inbox. The app requests access only to files it creates (`drive.file`) and the account email. Google saves the live working file in Drive; while the Job Card workspace is open, the portal syncs a DOCX/XLSX copy every minute and always syncs again immediately before submission. Admin reviews the portal copy using the existing approval flow. Google OAuth client settings and the existing `FIELD_ENCRYPTION_KEY` are required; refresh tokens are encrypted in the application database.
