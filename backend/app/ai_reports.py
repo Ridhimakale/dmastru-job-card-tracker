@@ -117,7 +117,13 @@ def draft_report(*, title: str, source: str, instructions: str) -> str:
     except (URLError, TimeoutError):
         raise HTTPException(502, "Could not reach the configured AI provider. Please try again.") from None
     except (ValueError, KeyError, TypeError) as exc:
-        logger.warning("Could not parse AI provider report response: model=%s error=%s", model, type(exc).__name__)
+        logger.warning(
+            "Could not parse AI provider report response: model=%s error=%s detail=%s",
+            model,
+            type(exc).__name__,
+            str(exc)[:240],
+            exc_info=True,
+        )
         raise HTTPException(502, "The AI provider returned an invalid report response. Check the API service logs.") from None
     content = (((result.get("choices") or [{}])[0].get("message") or {}).get("content"))
     if not isinstance(content, str) or not content.strip():
