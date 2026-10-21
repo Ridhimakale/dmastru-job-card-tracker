@@ -37,12 +37,12 @@ def _load_backend_env_file() -> None:
 
 def _provider_settings() -> tuple[str | None, str, str]:
     _load_backend_env_file()
-    groq_key = os.getenv("GROQ_API_KEY")
-    custom_base_url = os.getenv("AI_BASE_URL")
+    groq_key = (os.getenv("GROQ_API_KEY") or "").strip() or None
+    custom_base_url = (os.getenv("AI_BASE_URL") or "").strip() or None
     # GROQ_API_KEY explicitly selects Groq. Do not let stale provider settings
     # inherited from a previous shell redirect this key to another endpoint.
     groq_default = bool(groq_key)
-    api_key = groq_key or os.getenv("AI_API_KEY")
+    api_key = groq_key or (os.getenv("AI_API_KEY") or "").strip() or None
     base_url = "https://api.groq.com/openai/v1" if groq_default else (custom_base_url or "https://api.openai.com/v1")
     model = os.getenv("AI_MODEL") or os.getenv("GROQ_MODEL") or ("openai/gpt-oss-20b" if groq_default else "gpt-4o-mini")
     return api_key, base_url.rstrip("/"), model
@@ -117,13 +117,9 @@ def draft_report(*, title: str, source: str, instructions: str) -> str:
     except (URLError, TimeoutError):
         raise HTTPException(502, "Could not reach the configured AI provider. Please try again.") from None
     except (ValueError, KeyError, TypeError) as exc:
-        logger.warning(
-            "Could not parse AI provider report response: model=%s error=%s detail=%s",
-            model,
-            type(exc).__name__,
-            str(exc)[:240],
-            exc_info=True,
-        )
+        # Never log exception text here: malformed Authorization headers can
+        # include the provider key in the exception message.
+        logger.warning("Could not parse AI provider report response: model=%s error=%s", model, type(exc).__name__)
         raise HTTPException(502, "The AI provider returned an invalid report response. Check the API service logs.") from None
     content = (((result.get("choices") or [{}])[0].get("message") or {}).get("content"))
     if not isinstance(content, str) or not content.strip():
