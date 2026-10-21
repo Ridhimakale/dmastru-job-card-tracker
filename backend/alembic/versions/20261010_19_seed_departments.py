@@ -14,7 +14,11 @@ def upgrade():
     defaults=(("MARKETING","Marketing"),("CONSULTING","Consulting"),("REVIEW","Review"),("UNIT_REPRESENTATIVE","Unit Representative"),("MANAGEMENT","Management"),("DIRECTOR","Director"),("ADMIN","Administration"),("OPERATIONS","Operations"),("FINANCE","Finance"))
     missing=[{"code":code,"name":name,"active":True,"created_at":datetime.now(timezone.utc)} for code,name in defaults if code not in existing]
     if missing:op.bulk_insert(departments,missing)
-    op.execute(sa.text("UPDATE users SET department_id=(SELECT id FROM departments WHERE code='MARKETING') WHERE department_id IS NULL AND role='MARKETING'"))
+    # MARKETING was added to the PostgreSQL role enum earlier in this same
+    # upgrade transaction. Compare its text representation so PostgreSQL does
+    # not reject use of the uncommitted enum value.
+    role_filter="role::text='MARKETING'" if op.get_bind().dialect.name=="postgresql" else "role='MARKETING'"
+    op.execute(sa.text(f"UPDATE users SET department_id=(SELECT id FROM departments WHERE code='MARKETING') WHERE department_id IS NULL AND {role_filter}"))
 
 def downgrade():
     # Do not remove departments after users or workflow records may depend on them.

@@ -11,7 +11,10 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     # Preserve existing approver access by converting Director accounts to Management.
-    op.execute(sa.text("UPDATE users SET role='MANAGEMENT' WHERE role='DIRECTOR'"))
+    # DIRECTOR was added to the PostgreSQL role enum earlier in the upgrade;
+    # cast to text so it can be queried before the full upgrade commits.
+    director_filter="role::text='DIRECTOR'" if bind.dialect.name=="postgresql" else "role='DIRECTOR'"
+    op.execute(sa.text(f"UPDATE users SET role='MANAGEMENT' WHERE {director_filter}"))
     management_department = bind.execute(sa.text("SELECT id FROM departments WHERE code='MANAGEMENT' LIMIT 1")).scalar()
     director_department = bind.execute(sa.text("SELECT id FROM departments WHERE code='DIRECTOR' LIMIT 1")).scalar()
     if management_department is not None and director_department is not None:
