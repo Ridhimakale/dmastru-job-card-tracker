@@ -33,7 +33,7 @@ def upgrade():
     op.execute(sa.text("""
         INSERT INTO milestone_consultant_allocations
             (milestone_id, consultant_id, allocated_mandays, assigned_by, assigned_at, active)
-        SELECT id, responsible_consultant_id, COALESCE(planned_mandays, 0), NULL, CURRENT_TIMESTAMP, 1
+        SELECT id, responsible_consultant_id, COALESCE(planned_mandays, 0), NULL, CURRENT_TIMESTAMP, TRUE
         FROM milestones WHERE responsible_consultant_id IS NOT NULL AND COALESCE(planned_mandays, 0) > 0
     """))
 
